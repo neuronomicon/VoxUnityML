@@ -1,4 +1,5 @@
 # Voxelyze-Unity: Parallel Multi-Soft-Robot RL Simulation Framework (ver 0.5)
+[work in Progress]
 
 <img width="1791" height="1363" alt="screenshot" src="https://github.com/user-attachments/assets/70b7bc57-b812-4900-8225-18621b9f1f2c" />
 
@@ -90,3 +91,5 @@ The most critical implementation is the transition to a **"Unity-driven Lock-ste
 
 ## 6. Conclusion
 This implementation specification outlines an architecture that harmoniously fuses the overwhelming physics computational power of the C++ Voxelyze engine with Unity's flexible ML-Agents framework. By meticulously managing memory via zero-allocation pointers, managing independent training arena buffers, and strictly enforcing lock-step synchronization, the system achieves stable and framerate-drop-free training for complex multi-soft-robot simulations.
+
+Copyright (c) 2026 [NeuronomicoN/PCU-Game/PCU]. All rights reserved.
