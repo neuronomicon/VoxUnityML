@@ -1,6 +1,6 @@
-# Implementation Specification of a Multi-Soft-Robot Reinforcement Learning Simulation System Using Unity and Voxelyze
+# [VoxUnityML ver 0.5] Voxelyze Engine powered Parallel Multi-Soft-Robot Simulation and Machine Learning in Unity with ML-Agent
 
-![Unity Voxelyze Screenshot](screenshot.png)
+<img width="1791" height="1363" alt="screenshot" src="https://github.com/user-attachments/assets/70b7bc57-b812-4900-8225-18621b9f1f2c" />
 
 ## 1. Introduction
 This system was developed to seamlessly integrate the computationally intensive physical simulation of soft-body robots with Reinforcement Learning (RL) training. Because Unity's native physics engine (PhysX) has limitations in calculating soft-body dynamics, **Voxelyze**, a high-performance C++ voxel physics engine, was adopted as the core physical simulator. 
