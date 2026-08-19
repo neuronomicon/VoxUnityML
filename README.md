@@ -9,7 +9,6 @@
 *   **Nested Parallel Optimization**: Eliminates thread fork-join overhead by utilizing a single persistent OpenMP parallel region with implicit barriers for micro/macro steps.
 *   **Zero-Allocation Data Bridge**: Transfers vertex and state data directly from C++ to Unity's GPU via `IntPtr` and the Burst Compiler, entirely bypassing Garbage Collection (Zero GC).
 *   **Lock-Free Triple Buffering**: Ensures smooth 60+ FPS rendering in Unity without being bottlenecked or blocked by heavy asynchronous physics computations.
-*   **Lock-Step RL Synchronization**: Implements a strict ping-pong execution model between Unity and C++ to guarantee perfect Markov Decision Process (MDP) causality for reinforcement learning.
 *   **In-Scene Massive Parallelism**: Safely isolates memory buffers in the DLL, allowing dozens of independent soft robots to train simultaneously and asynchronously within a single Unity scene.
 *   **Bi-directional Physics Interaction**: Supports two-way continuous collision, force, and torque exchange between Unity PhysX rigidbodies and Voxelyze soft-bodies.
 *   **CPG Motor Actuation**: Translates AI commands into Central Pattern Generator (CPG) parameters, ensuring smooth, continuous sine-wave locomotion and preventing physics explosion.
