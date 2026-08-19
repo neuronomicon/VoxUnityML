@@ -1,3 +1,18 @@
+/*
+ * ==============================================================================
+ * Copyright (c) 2026 [Y.S.Shim(NeuronomicoN)]. All rights reserved.
+ * 
+ * Project      : [Voxelyze-Unity-MLAgents]
+ * File         : [VoxelRobotAgent.cs]
+ * Author       : [Y.S.Shim]
+ * Date Created : 2026-08-15
+ * 
+ * [WARNING] 
+ * The code in this file may not be copied, modified, distributed, or used for 
+ * commercial purposes without prior authorization. Plagiarism or intentional 
+ * removal of copyright notices may result in legal consequences.
+ * ==============================================================================
+ */
 
 using System; // IntPtr을 사용하기 위해 필수!
 using System.Runtime.InteropServices; // Marshal(메모리 변환)을 사용하기 위해 필수!
