@@ -92,7 +92,7 @@ The most critical implementation is the transition to a **"Unity-driven Lock-ste
 *   Each agent operates on independent episode timelines, resetting the environment locally upon failure.
 *   Experience data independently gathered across all training arenas are aggregated to simultaneously update a single Proximal Policy Optimization (PPO) neural network via the Unity ML-Agents trainer, significantly enhancing learning speed.
 
-## 6. Conclusion
+## Conclusion
 This implementation specification outlines an architecture that harmoniously fuses the overwhelming physics computational power of the C++ Voxelyze engine with Unity's flexible ML-Agents framework. By meticulously managing memory via zero-allocation pointers, managing independent training arena buffers, and strictly enforcing lock-step synchronization, the system achieves stable and framerate-drop-free training for complex multi-soft-robot simulations.
 
-Copyright (c) 2026 [NeuronomicoN/PCU-Game/PCU]. All rights reserved.
+#### Copyright (c) 2026 [Y.S.Shim and J.M.Hwang, PCU-Game Lab]. All rights reserved.
