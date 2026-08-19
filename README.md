@@ -1,5 +1,8 @@
 # Voxelyze-Unity: Parallel Multi-Soft-Robot RL Simulation Framework (ver 0.5)
-[work in Progress]
+
+> ⚠️ **WORK IN PROGRESS (WIP)**
+> This project is currently under active development and research. 
+> The code is being disclosed in advance for the purpose of maintaining a record of prior research and for demonstration purposes only.
 
 <img width="1791" height="1363" alt="screenshot" src="https://github.com/user-attachments/assets/70b7bc57-b812-4900-8225-18621b9f1f2c" />
 
