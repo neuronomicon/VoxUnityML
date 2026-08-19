@@ -1,0 +1,344 @@
+using System;
+using System.IO;
+using UnityEngine;
+using UnityEngine.Rendering;
+using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
+using System.Runtime.InteropServices;
+
+// C++ 구조체와 메모리 레이아웃을 100% 동일하게 맞춤
+[StructLayout(LayoutKind.Sequential)]
+public struct VtxDxAll
+{
+    public Vector3 pos;         // XMFLOAT3 -> 12 bytes
+    public Vector3 norm;        // XMFLOAT3 -> 12 bytes
+    public Vector3 normflat;    // XMFLOAT3 -> 12 bytes
+    public Vector2 tex;         // XMFLOAT2 -> 8 bytes
+    public Color col;           // XMFLOAT4 -> 16 bytes (Vector4도 가능)
+    public int matMode;         // int      -> 4 bytes
+}                               // Total: 64 bytes
+
+
+
+[RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
+public class VoxelRenderer : MonoBehaviour
+{
+    // 1. SetDllDirectory 함수 임포트 (Kernel32)
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern bool SetDllDirectory(string lpPathName);
+
+    // DLL 함수 임포트
+    //const string DLL_NAME = "NeuronomicoN_DLL_x64_Debug"; // "VoxelEngine" 등
+    const string DLL_NAME = "NeuronomicoN_DLL_x64_Release";
+
+    [DllImport(DLL_NAME)]
+    public static extern void Init_Voxel_Unity(int nRobotThr, int VOXEL_PARSE_KIND, int MAX_NUM_OSC );
+
+    [DllImport(DLL_NAME)]
+    public static extern void Fill_Voxel_Triangle_and_Line( out IntPtr triData, out int triCount, 
+                                                            out IntPtr lineData, out int lineCount );
+    [DllImport(DLL_NAME)]
+    public static extern void End_Voxel_Unity();
+
+    [DllImport(DLL_NAME)]
+    public static extern void SetSimulationPlayState(int is_Play);
+    // 유니티에서 관리할 현재 재생 상태
+    private int isPlaying = 0;
+
+    // 2. 유니티 버튼에 연결할 함수 (반드시 public이어야 함!)
+    public void ToggleSimulationButton()
+    {
+        // 상태 뒤집기 (true -> false, false -> true)
+        isPlaying = 1 - isPlaying;
+        
+        // C++ 로 바뀐 상태 전송
+        SetSimulationPlayState(isPlaying);
+
+        // 콘솔창에서 확인용 로그
+        if (isPlaying>0) Debug.Log("▶ 시뮬레이션 시작!");
+        else Debug.Log("⏸ 시뮬레이션 정지!");
+    }
+
+
+    // ----------------------------------------------------
+    // 2. 유니티 에디터에서 설정할 수 있는 초기화 파라미터
+    // ----------------------------------------------------
+    [Header("Voxel Engine Initialization")]
+    public int robotThreads = 1;           // nRobotThr
+    public int voxelParseKind = 0;         // VOXEL_PARSE_KIND
+    public int maxNumOscillators = 2;    // MAX_NUM_OSC
+
+
+    private Mesh mesh;
+    private VertexAttributeDescriptor[] vertexLayout;
+    private NativeArray<int> indices;
+    private int currentVertexCount = 0;
+
+
+    // ----------------------------------------------------
+    // 3. Awake() : 스크립트가 로드될 때 가장 먼저 1회 실행됨
+    // ----------------------------------------------------
+    [Header("Voxel Engine Initialization")]
+    public string dllFolderPath = "C:/Z_SHIM/PROG_MAJOR/PROJECT/NeuronomicoN_VS2022/ProjectDLL"; // 외부 DLL이 위치한 폴더 경로
+    
+    // DLL 모드 선택을 위한 Enum 정의
+    public enum DllMode
+    {
+        Debug,
+        Release
+    }   
+
+    // 1. 드롭다운 선택 변수 추가
+    [Header("DLL Configuration")]
+    public DllMode selectedMode = DllMode.Release; 
+
+    // DLL 이름들을 매핑할 속성
+    private string GetDllName()
+    {
+        return selectedMode == DllMode.Debug 
+            ? "NeuronomicoN_DLL_x64_Debug" 
+            : "NeuronomicoN_DLL_x64_Release";
+    }
+
+
+    void Awake()
+    {
+        // 2. DLL 경로 설정
+        if (Directory.Exists(dllFolderPath))
+        {
+            if (SetDllDirectory(dllFolderPath))
+            {
+                Debug.Log($"DLL 탐색 경로 설정 성공: {dllFolderPath}");
+            }
+            else
+            {
+                Debug.LogError("DLL 탐색 경로 설정 실패");
+            }
+        }
+        else
+        {
+            Debug.LogError($"지정된 DLL 폴더가 존재하지 않습니다: {dllFolderPath}");
+        }
+
+        // 3. DLL 엔진 초기화
+        Debug.Log($"선택된 DLL 모드: {GetDllName()}");
+        Debug.Log($"DLL 엔진 초기화 중... 쓰레드: {robotThreads}, 파싱 모드: {voxelParseKind}");
+        Init_Voxel_Unity(robotThreads, voxelParseKind, maxNumOscillators);
+        Debug.Log("DLL 엔진 초기화 완료");
+
+
+        // 시작할 때는 정지 상태로 세팅
+        SetSimulationPlayState(0);
+    }
+
+    // Start() : Awake 이후에 실행됨 (메쉬 설정)
+    void Start()
+    {
+        mesh = new Mesh();
+        mesh.MarkDynamic(); // 메쉬가 자주 갱신됨을 엔진에 알림
+        GetComponent<MeshFilter>().mesh = mesh;
+
+        // 커스텀 정점 레이아웃 정의 (구조체 순서와 정확히 일치해야 함)
+        vertexLayout = new[]
+        {
+            /*
+            new VertexAttributeDescriptor(VertexAttribute.Position, VertexAttributeFormat.Float32, 3),
+            new VertexAttributeDescriptor(VertexAttribute.Normal, VertexAttributeFormat.Float32, 3),
+            // normflat은 유니티 기본 속성에 없으므로 TexCoord1을 빌려 씁니다.
+            new VertexAttributeDescriptor(VertexAttribute.TexCoord1, VertexAttributeFormat.Float32, 3), 
+            new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float32, 2),
+            new VertexAttributeDescriptor(VertexAttribute.Color, VertexAttributeFormat.Float32, 4),
+            // matMode도 속성에 없으므로 TexCoord2를 SInt32 타입으로 빌려 씁니다.
+            new VertexAttributeDescriptor(VertexAttribute.TexCoord2, VertexAttributeFormat.SInt32, 1) 
+            */
+            
+            // 0. Position
+            new VertexAttributeDescriptor(VertexAttribute.Position, VertexAttributeFormat.Float32, 3),             
+            // 1. Normal
+            new VertexAttributeDescriptor(VertexAttribute.Normal, VertexAttributeFormat.Float32, 3),               
+            // 2. Tangent (원래 4개짜리지만, 3개짜리 float인 normflat을 넣어도 완벽히 동작함)
+            new VertexAttributeDescriptor(VertexAttribute.Tangent, VertexAttributeFormat.Float32, 3),              
+            // 4. TexCoord0 (tex)
+            new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float32, 2),            
+            // 5. TexCoord1 (color를 Color 속성이 아닌 TexCoord1 채널로 몰래 보냄. Color는 float 4개이므로 4)
+            new VertexAttributeDescriptor(VertexAttribute.TexCoord1, VertexAttributeFormat.Float32, 4),            
+            // 6. TexCoord2 (matMode)
+            new VertexAttributeDescriptor(VertexAttribute.TexCoord2, VertexAttributeFormat.SInt32, 1)
+        };
+
+
+        // 이 오브젝트의 로컬 스케일을 강제로 100배로 설정
+        transform.localScale = new Vector3(10f, 10f, 10f);
+
+        // 🌟 수정 1: 매 프레임 무거운 계산을 막기 위해 10만 미터짜리 영구 바운딩 박스를 씌움
+        mesh.bounds = new Bounds(Vector3.zero, new Vector3(100000f, 100000f, 100000f));
+
+
+        // 🌟 최적화 1: 정점 버퍼를 매 프레임 건드리지 않기 위해 처음에 최대 크기로 딱 1번만 할당!
+        mesh.SetVertexBufferParams(maxVertexCapacity, vertexLayout);
+
+        // 🌟 최적화 2: 인덱스 버퍼도 처음에 최대 크기로 1번만 생성하여 업로드하고 끝냄!
+        persistentIndices = new NativeArray<int>(maxVertexCapacity, Allocator.Persistent);
+        for (int i = 0; i < maxVertexCapacity; i++) persistentIndices[i] = i;
+
+        mesh.indexFormat = IndexFormat.UInt32;
+        mesh.SetIndexBufferParams(maxVertexCapacity, IndexFormat.UInt32);
+        mesh.SetIndexBufferData(persistentIndices, 0, 0, maxVertexCapacity);
+    }
+
+    // 포인터를 다루므로 unsafe 블록 사용 (프로젝트 설정에서 'Allow 'unsafe' Code' 켜기)
+    unsafe void Update()
+    {
+        IntPtr dataPtr, linePtr;
+        int vertexCount, lineCount;
+
+        // 1. C++로부터 이번 프레임의 정점 포인터와 개수를 가져옴
+        Fill_Voxel_Triangle_and_Line(out dataPtr, out vertexCount, out linePtr, out lineCount);
+
+        
+        // [디버깅용 로그 출력 코드]
+        bool isDebugLogged = true;
+        if (!isDebugLogged)
+        {            
+            // IntPtr(void*)을 C# 구조체 포인터로 캐스팅
+            VtxDxAll* vtxPtr = (VtxDxAll*)dataPtr;
+
+            // 전체를 다 출력하면 유니티가 멈추므로 최대 3개만 확인
+            int checkCount = Mathf.Min(3, vertexCount);
+            
+            Debug.Log($"--- C++ DLL 정점 데이터 확인 (총 {vertexCount}개) ---");
+            for (int i = 0; i < checkCount; i++)
+            {
+                Debug.Log($"[정점 {i}] " +
+                          $"Pos: {vtxPtr[i].pos}, " +
+                          $"Norm: {vtxPtr[i].norm}, " +
+                          $"Tex: {vtxPtr[i].tex}, " +
+                          $"Color: {vtxPtr[i].col}, " +
+                          $"matMode: {vtxPtr[i].matMode}");
+            }
+            
+            isDebugLogged = true; // 다음 프레임부터는 출력하지 않음
+        }
+
+
+
+        if (vertexCount == 0) return;
+
+        // 2. 포인터를 NativeArray로 래핑 (메모리 복사 발생 안함! O(1) 처리) 
+        NativeArray<VtxDxAll> nativeVertices = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<VtxDxAll>(
+            (void*)dataPtr, vertexCount, Allocator.None);
+
+        #if ENABLE_UNITY_COLLECTIONS_CHECKS
+        // 에디터 크래시 방지를 위한 안전 핸들 설정
+        NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref nativeVertices, AtomicSafetyHandle.Create());
+        #endif
+
+        
+        // 🌟 [크래시 방지 핵심] 
+        // 정점 버퍼 크기를 변경하기 전에, 서브메쉬가 그릴 인덱스 범위를 0으로 초기화합니다.
+        mesh.SetSubMesh(0, new SubMeshDescriptor(0, 0));
+
+
+        // 3. 메쉬 정점 버퍼 갱신
+        mesh.SetVertexBufferParams(vertexCount, vertexLayout);
+        mesh.SetVertexBufferData(nativeVertices, 0, 0, vertexCount);
+
+        // 4. 인덱스 버퍼 갱신 (C++에서 정점만 넘어오고 인덱스가 없다면)
+        UpdateIndexBuffer(vertexCount);
+        
+        // 메쉬의 바운딩 박스를 갱신해야 카메라 컬링에 안 잘립니다.
+        //mesh.RecalculateBounds(); 
+    }
+
+
+    // 🌟 수정 3: 매번 배열을 폐기하지 않고, 공간이 모자랄 때만 늘려주는 스마트 인덱스 버퍼
+    private void UpdateIndexBuffer(int vertexCount)
+    {
+        // 정점 개수가 이전 프레임과 동일하다면 메모리를 건드릴 필요 없이 그리기만 지시 (성능 최적화)
+        if (currentVertexCount == vertexCount && indices.IsCreated)
+        {
+            mesh.SetSubMesh(0, new SubMeshDescriptor(0, vertexCount, MeshTopology.Triangles));
+            return;
+        }
+
+        if (indices.IsCreated) indices.Dispose();
+
+        // 🌟 이번에는 여유 공간(1.5배) 없이 정확히 필요한 개수만큼만 배열을 생성합니다.
+        indices = new NativeArray<int>(vertexCount, Allocator.Persistent);
+
+        // 0부터 vertexCount-1 까지만 안전하게 인덱스 채우기
+        for (int i = 0; i < vertexCount; i++) indices[i] = i;
+
+        mesh.indexFormat = IndexFormat.UInt32; 
+        mesh.SetIndexBufferParams(vertexCount, IndexFormat.UInt32);
+        
+        // 🌟 이제 배열 안에 정점 개수를 초과하는 숫자가 없으므로 유니티가 크래쉬를 내지 않습니다.
+        mesh.SetIndexBufferData(indices, 0, 0, vertexCount);
+
+        // 최종적으로 범위 지정
+        mesh.SetSubMesh(0, new SubMeshDescriptor(0, vertexCount, MeshTopology.Triangles));
+
+        currentVertexCount = vertexCount;
+    }
+
+
+    // 삼각형 정점이 1열로 나열되어 있다고 가정하고 순차적 인덱스 [0, 1, 2, 3, ...] 생성
+    private void UpdateIndexBuffer_OLD(int vertexCount)
+    {
+        if (currentVertexCount == vertexCount) return;
+
+        if (indices.IsCreated) indices.Dispose();
+        indices = new NativeArray<int>(vertexCount, Allocator.Persistent);
+
+        // 0, 1, 2, 3 ... 배열 채우기
+        for (int i = 0; i < vertexCount; i++) indices[i] = i;
+
+        // 메쉬가 커질 수 있으므로 32비트 인덱스 포맷 사용
+        mesh.indexFormat = IndexFormat.UInt32; 
+        mesh.SetIndexBufferParams(vertexCount, IndexFormat.UInt32);
+        mesh.SetIndexBufferData(indices, 0, 0, vertexCount);
+
+        // Submesh 설정
+        mesh.SetSubMesh(0, new SubMeshDescriptor(0, vertexCount, MeshTopology.Triangles));
+        
+        currentVertexCount = vertexCount;
+    }
+
+   
+
+    // [추가] 중복 해제 방지용 플래그
+    private bool isDllCleanedUp = false;
+
+    // [추가] DLL 메모리를 안전하게 닫는 전용 함수
+    private void CleanupDLL()
+    {
+        if (!isDllCleanedUp)
+        {
+            Debug.Log("DLL 스레드 종료 및 메모리 해제 진행 중...");
+            
+            // C++ 쪽으로 스레드 개수를 넘겨주어 루프 탈출 및 메모리 delete를 지시합니다.
+            End_Voxel_Unity(); 
+            
+            Debug.Log("DLL 안전 종료 완료.");
+            isDllCleanedUp = true;
+        }
+    }
+
+    // 오브젝트가 파괴되거나 다른 씬으로 넘어갈 때 호출됨
+    void OnDestroy()
+    {
+        // 기존: NativeArray 메모리 누수 방지
+        if (indices.IsCreated) indices.Dispose();
+
+        // DLL 해제
+        CleanupDLL();
+    }
+
+    // 유니티 플레이 모드를 정지(▶)하거나, 빌드된 게임이 꺼질 때 호출됨
+    void OnApplicationQuit()
+    {
+        // DLL 해제 (OnDestroy보다 먼저 불릴 수도 있으므로 양쪽에 방어적으로 작성)
+        CleanupDLL();
+    }
+
+}

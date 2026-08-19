@@ -1,0 +1,160 @@
+
+
+
+
+
+    // 🌟 핵심: 로봇이 아무리 커져도 감당할 수 있는 '최대 정점 개수'를 미리 설정 (예: 100만 개)
+    public int maxVertexCapacity = 1000000;
+
+    private Mesh mesh;
+    private NativeArray<int> persistentIndices;
+    
+
+
+    // 🌟 라인 렌더링 전용 변수들
+    // 🌟 라인용 최대 정점 버퍼 (새로 추가됨)
+    public int maxLineVertexCapacity = 500000;
+    private Mesh lineMesh;
+    private NativeArray<int> persistentLineIndices;
+    private Material lineMaterial;
+
+    
+    // Start() : Awake 이후에 실행됨 (메쉬 설정)
+    void Start()
+    {        
+        // 커스텀 정점 레이아웃 정의 (구조체 순서와 정확히 일치해야 함)
+        VertexAttributeDescriptor[] vertexLayout = new[]
+        {
+            new VertexAttributeDescriptor(VertexAttribute.Position,  VertexAttributeFormat.Float32, 3), // 0. Position            
+            new VertexAttributeDescriptor(VertexAttribute.Normal,    VertexAttributeFormat.Float32, 3), // 1. Normal            
+            new VertexAttributeDescriptor(VertexAttribute.Tangent,   VertexAttributeFormat.Float32, 3), // 2. Tangent (원래 4개짜리지만, 3개짜리 float인 normflat을 넣어도 완벽히 동작함)            
+            new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float32, 2), // 4. TexCoord0 (tex)            
+            new VertexAttributeDescriptor(VertexAttribute.TexCoord1, VertexAttributeFormat.Float32, 4), // 5. TexCoord1 (color를 Color 속성이 아닌 TexCoord1 채널로 몰래 보냄. Color는 float 4개이므로 4)            
+            new VertexAttributeDescriptor(VertexAttribute.TexCoord2, VertexAttributeFormat.SInt32,  1)  // 6. TexCoord2 (matMode)
+        };
+
+
+        // 이 오브젝트의 로컬 스케일을 강제로 100배로 설정
+        transform.localScale = new Vector3(10f, 10f, 10f);
+
+        // 🌟 수정 1: 매 프레임 무거운 계산을 막기 위해 10만 미터짜리 영구 바운딩 박스를 씌움
+           // mesh.bounds = new Bounds(Vector3.zero, new Vector3(100000f, 100000f, 100000f));
+        Bounds hugeBounds = new Bounds(Vector3.zero, new Vector3(100000f, 100000f, 100000f));
+
+
+        
+        // 2. 삼각형 메쉬 설정 (기존)        
+        mesh = new Mesh();
+        mesh.MarkDynamic(); // 메쉬가 자주 갱신됨을 엔진에 알림
+        GetComponent<MeshFilter>().mesh = mesh;
+        mesh.bounds = hugeBounds;
+
+        // 🌟 최적화 1: 정점 버퍼를 매 프레임 건드리지 않기 위해 처음에 최대 크기로 딱 1번만 할당!
+        mesh.SetVertexBufferParams(maxVertexCapacity, vertexLayout);
+        // 🌟 최적화 2: 인덱스 버퍼도 처음에 최대 크기로 1번만 생성하여 업로드하고 끝냄!
+        persistentIndices = new NativeArray<int>(maxVertexCapacity, Allocator.Persistent);
+        for (int i = 0; i < maxVertexCapacity; i++) persistentIndices[i] = i;
+
+        mesh.indexFormat = IndexFormat.UInt32;
+        mesh.SetIndexBufferParams(maxVertexCapacity, IndexFormat.UInt32);
+        mesh.SetIndexBufferData(persistentIndices, 0, 0, maxVertexCapacity);
+
+
+        // 3. 라인 전용 메쉬 설정 (신규)        
+        lineMesh = new Mesh();
+        lineMesh.MarkDynamic();
+        lineMesh.bounds = hugeBounds;
+
+        lineMesh.SetVertexBufferParams(maxLineVertexCapacity, vertexLayout);
+        persistentLineIndices = new NativeArray<int>(maxLineVertexCapacity, Allocator.Persistent);
+        for (int i = 0; i < maxLineVertexCapacity; i++) persistentLineIndices[i] = i;
+
+        lineMesh.indexFormat = IndexFormat.UInt32;
+        lineMesh.SetIndexBufferParams(maxLineVertexCapacity, IndexFormat.UInt32);
+        lineMesh.SetIndexBufferData(persistentLineIndices, 0, 0, maxLineVertexCapacity);
+
+        // 검은색 선을 그리기 위한 단색 머티리얼 동적 생성
+        lineMaterial = new Material(Shader.Find("Unlit/Color"));
+        lineMaterial.color = Color.black;
+    }
+
+
+
+    // [수정됨] 디버그 로그가 한 번만 출력되도록 클래스 멤버 변수로 이동
+    private bool isDebugLogged = false;
+    
+    // 포인터를 다루므로 unsafe 블록 사용 (프로젝트 설정에서 'Allow 'unsafe' Code' 켜기)
+    unsafe void Update()
+    {
+        IntPtr triPtr, linePtr;
+        int triCount, lineCount;
+
+        // C++에서 정점 데이터 가져오기
+        Fill_Voxel_Triangle_and_Line(out triPtr, out triCount, out linePtr, out lineCount);
+
+        // --- 디버깅 영역 ---
+        if (!isDebugLogged && triCount > 0)
+        {            
+        /*  VtxDxAll* vtxPtr = (VtxDxAll*)triPtr;
+            int checkCount = Mathf.Min(3, triCount);
+            Debug.Log($"--- C++ DLL 정점 데이터 확인 (총 {triCount}개) ---");
+            for (int i = 0; i < checkCount; i++)
+            {
+                Debug.Log($"[정점 {i}] Pos: {vtxPtr[i].pos}, Norm: {vtxPtr[i].norm}, Tex: {vtxPtr[i].tex}, Color: {vtxPtr[i].col}, matMode: {vtxPtr[i].matMode}");
+            }
+            isDebugLogged = true; // 다음 프레임부터 차단
+        */
+        }
+
+        // ==========================================================
+        // 1. 삼각형 (Quad) 렌더링
+        // ==========================================================
+        if (triCount > 0)
+        {
+            if (triCount > maxVertexCapacity)
+            {
+                Debug.LogError($"삼각형 정점({triCount})이 최대 용량({maxVertexCapacity}) 초과!");
+            }
+            else
+            {
+                NativeArray<VtxDxAll> nativeTriangles = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<VtxDxAll>(
+                    (void*)triPtr, triCount, Allocator.None);
+
+                #if ENABLE_UNITY_COLLECTIONS_CHECKS
+                NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref nativeTriangles, AtomicSafetyHandle.Create());
+                #endif
+
+                mesh.SetVertexBufferData(nativeTriangles, 0, 0, triCount);
+                mesh.SetSubMesh(0, new SubMeshDescriptor(0, triCount, MeshTopology.Triangles));
+            }
+        }
+
+        // ==========================================================
+        // 2. 외곽선 (Line) 렌더링
+        // ==========================================================
+        if (lineCount > 0)
+        {
+            if (lineCount > maxLineVertexCapacity)
+            {
+                Debug.LogError($"라인 정점({lineCount})이 최대 용량({maxLineVertexCapacity}) 초과!");
+            }
+            else
+            {
+                NativeArray<VtxDxAll> nativeLines = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<VtxDxAll>(
+                    (void*)linePtr, lineCount, Allocator.None);
+
+                #if ENABLE_UNITY_COLLECTIONS_CHECKS
+                NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref nativeLines, AtomicSafetyHandle.Create());
+                #endif
+
+                lineMesh.SetVertexBufferData(nativeLines, 0, 0, lineCount);
+                
+                // 🌟 핵심: 위상(Topology)을 Triangles가 아닌 Lines로 설정합니다.
+                lineMesh.SetSubMesh(0, new SubMeshDescriptor(0, lineCount, MeshTopology.Lines));
+
+                // 🌟 핵심: 별도의 GameObject 생성 없이, 현재 객체의 트랜스폼(위치/비율)을 따라가며 즉시 렌더링합니다.
+                Graphics.DrawMesh(lineMesh, transform.localToWorldMatrix, lineMaterial, gameObject.layer);
+            }
+        }
+    }
+
