@@ -1,4 +1,4 @@
-# [VoxUnityML ver 0.5] Voxelyze Engine powered Parallel Multi-Soft-Robot Simulation and Machine Learning in Unity with ML-Agent
+# [VoxUnityML ver 0.5] Parallel Soft-Robot RL Simulation with Voxelyze and Unity ML-Agents
 
 <img width="1791" height="1363" alt="screenshot" src="https://github.com/user-attachments/assets/70b7bc57-b812-4900-8225-18621b9f1f2c" />
 
