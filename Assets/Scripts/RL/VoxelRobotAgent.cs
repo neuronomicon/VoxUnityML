@@ -175,10 +175,6 @@ public class VoxelRobotAgent : Agent
             currentPtr = new IntPtr(currentPtr.ToInt64() + structSize);
         }
 
-        //Vector3 localZ = (voxels[17].pos - voxels[15].pos).normalized;
-        //Vector3 tempX = (voxels[21].pos - voxels[11].pos).normalized;
-        //Vector3 localY = Vector3.Cross(localZ, tempX).normalized;
-        //Vector3 localX = Vector3.Cross(localY, localZ).normalized;
 
         // 🌟 [수정] .normalized 대신 SafeNormalize 사용 (NaN 원천 차단)
         Vector3 dirZ = voxels[17].pos - voxels[15].pos;
@@ -199,11 +195,6 @@ public class VoxelRobotAgent : Agent
 
         if (targetTransform != null)
         {
-            //Vector3 worldTargetDir = targetTransform.position - voxels[16].pos;            
-
-            //float localTargetX = Vector3.Dot(worldTargetDir, localX);
-            //float localTargetZ = Vector3.Dot(worldTargetDir, localZ);
-
             // 🌟 타겟의 유니티 월드 좌표를 C++ 로컬 좌표계(스케일 포함)로 완벽히 역변환
             Vector3 targetLocalPos = physicsInfo.transform.InverseTransformPoint(targetTransform.position);
             Vector3 localTargetDir = targetLocalPos - voxels[16].pos;
@@ -397,6 +388,9 @@ public class VoxelRobotAgent : Agent
         
         return lastCheckedPos; // 포인터가 없을 때 안전한 기본값
     }
+
+
+    
 }
 
 
