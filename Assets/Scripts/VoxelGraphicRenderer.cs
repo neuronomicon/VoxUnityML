@@ -69,6 +69,13 @@ public class VoxelGraphicRenderer : MonoBehaviour
 
     #else
 
+        // 🌟 [추가 방어벽] -batchmode -nographics 로 실행되어 그래픽 카드가 꺼져있을 때 셰이더 크래시 원천 차단!
+        if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null)
+        {
+            this.enabled = false;
+            return;
+        }
+
         VertexAttributeDescriptor[] vertexLayout = new[]
         {
             new VertexAttributeDescriptor(VertexAttribute.Position,  VertexAttributeFormat.Float32, 3),            
@@ -129,6 +136,11 @@ public class VoxelGraphicRenderer : MonoBehaviour
             mesh.SetVertexBufferData(nativeTriangles, 0, 0, triCount);
             mesh.SetSubMesh(0, new SubMeshDescriptor(0, triCount, MeshTopology.Triangles));
         }
+        else if (triCount > maxVertexCapacity)
+        {
+            // 🌟 용량이 꽉 차서 렌더링이 무시되었음을 알림
+            Debug.LogWarning($"[VoxelGraphicRenderer] 로봇 {robotIndex}번의 정점 개수({triCount})가 최대 용량({maxVertexCapacity})을 초과하여 렌더링이 생략되었습니다!");
+        }
 
         if (lineCount > 0 && lineCount <= maxLineVertexCapacity)
         {
@@ -141,6 +153,10 @@ public class VoxelGraphicRenderer : MonoBehaviour
             lineMesh.SetVertexBufferData(nativeLines, 0, 0, lineCount);
             lineMesh.SetSubMesh(0, new SubMeshDescriptor(0, lineCount, MeshTopology.Lines));
             Graphics.DrawMesh(lineMesh, transform.localToWorldMatrix, lineMaterial, gameObject.layer);
+        }
+        else if (lineCount > maxLineVertexCapacity)
+        {
+            Debug.LogWarning($"[VoxelGraphicRenderer] 로봇 {robotIndex}번의 라인 개수({lineCount})가 최대 용량({maxLineVertexCapacity})을 초과했습니다!");
         }
     #endif
     }

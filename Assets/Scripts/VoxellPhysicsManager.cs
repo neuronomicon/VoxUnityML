@@ -24,7 +24,7 @@ public class VoxelPhysicsManager : MonoBehaviour
     // 🚨 1. 글로벌 싱글톤(Instance) 완전 제거됨
     //public static VoxelPhysicsManager Instance { get; private set; }
 
-    [StructLayout(LayoutKind.Sequential)]
+    [StructLayout(LayoutKind.Sequential)] 
     public struct UnityColliderInfo {
         public int objectId;
         public int colliderType; 
