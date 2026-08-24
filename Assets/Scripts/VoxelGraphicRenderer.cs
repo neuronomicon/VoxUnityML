@@ -112,6 +112,16 @@ public class VoxelGraphicRenderer : MonoBehaviour
 
         lineMaterial = new Material(Shader.Find("Unlit/Color")) { color = Color.black };
 
+        // 🌟 [중요 복구!] 메모리 폭발(Graphics.DrawMesh)을 막기 위한 라인 전용 자식 오브젝트 생성
+        GameObject lineObj = new GameObject("LineRendererObject");
+        lineObj.transform.SetParent(this.transform, false);
+        lineObj.layer = this.gameObject.layer;
+        
+        MeshFilter lineMf = lineObj.AddComponent<MeshFilter>();
+        MeshRenderer lineMr = lineObj.AddComponent<MeshRenderer>();
+        lineMf.mesh = lineMesh;
+        lineMr.material = lineMaterial;
+
     #endif
     }
 
@@ -125,16 +135,37 @@ public class VoxelGraphicRenderer : MonoBehaviour
         // C++에서 렌더링 데이터 훔쳐오기
         Fill_Voxel_Triangle_and_Line( robotIndex, out triPtr, out triCount, out linePtr, out lineCount);
 
+        //🌟 [핵심 해결책] 유니티 내부의 Job 생성 및 메모리 누수 검사를 완전히 건너뛰는 강제 옵션
+        MeshUpdateFlags flags = MeshUpdateFlags.DontRecalculateBounds | 
+                                MeshUpdateFlags.DontValidateIndices | 
+                                MeshUpdateFlags.DontNotifyMeshUsers;
+
         if (triCount > 0 && triCount <= maxVertexCapacity)
+        // 방어벽: 포인터가 Zero가 아닐 때만 실행
+        if (triPtr != IntPtr.Zero && triCount > 0 && triCount <= maxVertexCapacity)
         {
             NativeArray<VtxDxAll> nativeTriangles = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<VtxDxAll>(
                 (void*)triPtr, triCount, Allocator.None);
 
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-            NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref nativeTriangles, AtomicSafetyHandle.Create());
+            //NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref nativeTriangles, AtomicSafetyHandle.Create());
+            // 🌟 1. 생성한 핸들을 변수에 저장해 둡니다.
+            var triSafetyHandle = AtomicSafetyHandle.Create();
+            NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref nativeTriangles, triSafetyHandle);
 #endif
-            mesh.SetVertexBufferData(nativeTriangles, 0, 0, triCount);
-            mesh.SetSubMesh(0, new SubMeshDescriptor(0, triCount, MeshTopology.Triangles));
+            
+            //mesh.SetVertexBufferData(nativeTriangles, 0, 0, triCount);
+            //mesh.SetSubMesh(0, new SubMeshDescriptor(0, triCount, MeshTopology.Triangles));
+
+            // 🌟 옵션(flags)을 추가하여 GPU에 다이렉트로 꽂아버립니다. (JobTempAlloc 누수 원천 차단)
+            mesh.SetVertexBufferData(nativeTriangles, 0, 0, triCount, 0, flags);
+            mesh.SetSubMesh(0, new SubMeshDescriptor(0, triCount, MeshTopology.Triangles), flags);
+
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+            // 🌟 2. GPU 업로드가 끝났으므로 핸들을 즉시 해제하여 메모리 누수를 완벽히 방지합니다!
+            AtomicSafetyHandle.Release(triSafetyHandle);
+#endif
+
         }
         else if (triCount > maxVertexCapacity)
         {
@@ -142,21 +173,49 @@ public class VoxelGraphicRenderer : MonoBehaviour
             Debug.LogWarning($"[VoxelGraphicRenderer] 로봇 {robotIndex}번의 정점 개수({triCount})가 최대 용량({maxVertexCapacity})을 초과하여 렌더링이 생략되었습니다!");
         }
 
-        if (lineCount > 0 && lineCount <= maxLineVertexCapacity)
+        else // triCount == 0 인 경우 (로봇이 파괴되었거나 데이터가 없을 때)
+        {
+            // 🌟 0개로 설정하여 잔상(고스트)을 화면에서 지워줍니다.
+            mesh.SetSubMesh(0, new SubMeshDescriptor(0, 0, MeshTopology.Triangles), flags);
+        }
+
+        // ==============================================================
+        // 2. 라인 렌더링 처리
+        // ==============================================================
+        if (linePtr != IntPtr.Zero && lineCount > 0 && lineCount <= maxLineVertexCapacity)
         {
             NativeArray<VtxDxAll> nativeLines = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<VtxDxAll>(
                 (void*)linePtr, lineCount, Allocator.None);
 
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-            NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref nativeLines, AtomicSafetyHandle.Create());
+            //NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref nativeLines, AtomicSafetyHandle.Create());
+            // 🌟 1. 라인용 안전 핸들 변수 저장
+            var lineSafetyHandle = AtomicSafetyHandle.Create();
+            NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref nativeLines, lineSafetyHandle);
 #endif
-            lineMesh.SetVertexBufferData(nativeLines, 0, 0, lineCount);
-            lineMesh.SetSubMesh(0, new SubMeshDescriptor(0, lineCount, MeshTopology.Lines));
-            Graphics.DrawMesh(lineMesh, transform.localToWorldMatrix, lineMaterial, gameObject.layer);
+            //lineMesh.SetVertexBufferData(nativeLines, 0, 0, lineCount);
+            //lineMesh.SetSubMesh(0, new SubMeshDescriptor(0, lineCount, MeshTopology.Lines));
+
+            // 🌟 라인 렌더링에도 동일하게 옵션(flags) 추가
+            lineMesh.SetVertexBufferData(nativeLines, 0, 0, lineCount, 0, flags);
+            lineMesh.SetSubMesh(0, new SubMeshDescriptor(0, lineCount, MeshTopology.Lines), flags);
+
+            //Graphics.DrawMesh(lineMesh, transform.localToWorldMatrix, lineMaterial, gameObject.layer);
+            // ❌ Graphics.DrawMesh는 자식 오브젝트가 대신 그리므로 완전히 삭제되었습니다!
+
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+            // 🌟 2. 즉시 해제
+            AtomicSafetyHandle.Release(lineSafetyHandle);
+#endif
+
         }
         else if (lineCount > maxLineVertexCapacity)
         {
             Debug.LogWarning($"[VoxelGraphicRenderer] 로봇 {robotIndex}번의 라인 개수({lineCount})가 최대 용량({maxLineVertexCapacity})을 초과했습니다!");
+        }
+        else // lineCount == 0 인 경우
+        {
+            lineMesh.SetSubMesh(0, new SubMeshDescriptor(0, 0, MeshTopology.Lines), flags);
         }
     #endif
     }

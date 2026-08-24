@@ -129,7 +129,7 @@ public class VoxelPhysicsManager : MonoBehaviour
                 agent.robotIdx = assignedIndex;
         }
 
-        sendCollidersBuffer = new UnityColliderInfo[100];
+        sendCollidersBuffer = new UnityColliderInfo[1000];
         receiveForcesBuffer = new UnityReactionForce[20000]; 
 
         foreach (var col in interactiveObjects)

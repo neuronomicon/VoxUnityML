@@ -511,7 +511,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::VoxelMouseInteractor
   pickRadius: 0.05
-  dragForceK: 100
+  dragForceK: 20
   showPickIndicator: 1
 --- !u!1 &400405848
 GameObject:
@@ -1051,6 +1051,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 5186680570733202309, guid: 7559785e2fb8f4740a627a8824dce7b2, type: 3}
+      propertyPath: selectedVoxFileName
+      value: RL_Test_Bot_All_Motor.vox
+      objectReference: {fileID: 0}
     - target: {fileID: 5196648359041705772, guid: 7559785e2fb8f4740a627a8824dce7b2, type: 3}
       propertyPath: m_Name
       value: TrainingArea
