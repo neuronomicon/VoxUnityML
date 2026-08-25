@@ -76,3 +76,5 @@ crashlytics-build.properties
 
 # ML-Agents Logs
 *_timers.json
+
+README.md
