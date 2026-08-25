@@ -43,7 +43,7 @@ public class VoxelGraphicRenderer : MonoBehaviour
     public static extern void Fill_Voxel_Triangle_and_Line( int robotIdx,
                                                             out IntPtr triData, out int triCount, 
                                                             out IntPtr lineData, out int lineCount );
-    [Header("이 스크립트가 렌더링할 타겟 로봇")]
+    [Header("Target Robot ID")]
     [ReadOnly] public int robotIndex = 0; // 🌟 이 로봇 번호만 C++에 요청함
 
 
@@ -170,7 +170,8 @@ public class VoxelGraphicRenderer : MonoBehaviour
         else if (triCount > maxVertexCapacity)
         {
             // 🌟 용량이 꽉 차서 렌더링이 무시되었음을 알림
-            Debug.LogWarning($"[VoxelGraphicRenderer] 로봇 {robotIndex}번의 정점 개수({triCount})가 최대 용량({maxVertexCapacity})을 초과하여 렌더링이 생략되었습니다!");
+            //Debug.LogWarning($"[VoxelGraphicRenderer] 로봇 {robotIndex}번의 정점 개수({triCount})가 최대 용량({maxVertexCapacity})을 초과하여 렌더링이 생략되었습니다!");
+            Debug.LogWarning($"[VoxelGraphicRenderer] Robot {robotIndex}'s vertex count ({triCount}) exceeded the maximum capacity ({maxVertexCapacity}), so rendering was skipped!");
         }
 
         else // triCount == 0 인 경우 (로봇이 파괴되었거나 데이터가 없을 때)
@@ -211,7 +212,8 @@ public class VoxelGraphicRenderer : MonoBehaviour
         }
         else if (lineCount > maxLineVertexCapacity)
         {
-            Debug.LogWarning($"[VoxelGraphicRenderer] 로봇 {robotIndex}번의 라인 개수({lineCount})가 최대 용량({maxLineVertexCapacity})을 초과했습니다!");
+            //Debug.LogWarning($"[VoxelGraphicRenderer] 로봇 {robotIndex}번의 라인 개수({lineCount})가 최대 용량({maxLineVertexCapacity})을 초과했습니다!");
+            Debug.LogWarning($"[VoxelGraphicRenderer] Robot {robotIndex}'s line count ({lineCount}) exceeded the maximum capacity ({maxLineVertexCapacity})!");
         }
         else // lineCount == 0 인 경우
         {

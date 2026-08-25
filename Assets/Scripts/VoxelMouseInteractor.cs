@@ -19,17 +19,31 @@ using UnityEngine.InputSystem;
 
 public class VoxelMouseInteractor : MonoBehaviour
 {
+/* 
     [Header("클릭(마우스 픽킹) 설정")]
     // 🌟 1. 픽킹 반경을 복셀 월드 크기(0.1)의 절반인 0.05로 대폭 줄여서 아주 정밀하게 맞췄을 때만 클릭되도록 합니다.
     [Tooltip("마우스 클릭을 인식할 반경 (복셀 크기의 절반 정도가 적당합니다. 예: 0.05)")]
     public float pickRadius = 0.05f; 
-
     [Header("드래그 설정")]
     public float dragForceK = 1000f; 
-
     [Header("시각적 피드백 (선택 마커)")]
     public bool showPickIndicator = true;
     private GameObject pickIndicator; 
+*/
+
+    [Header("Click (Mouse Picking) Settings")]
+    // 🌟 1. Significantly reduced the picking radius to 0.05 (half the voxel world size of 0.1) to ensure clicks are registered only with high precision.
+    [Tooltip("Radius for detecting mouse clicks (about half the voxel size is recommended, e.g., 0.05)")]
+    public float pickRadius = 0.05f; 
+
+    [Header("Drag Settings")]
+    public float dragForceK = 1000f;
+
+    [Header("Visual Feedback (Selection Marker)")]
+    public bool showPickIndicator = true;
+    private GameObject pickIndicator; 
+
+
 
     private bool isDragging = false;
     private float dragPlaneDistance; 

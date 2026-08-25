@@ -83,16 +83,24 @@ public class VoxelPhysicsManager : MonoBehaviour
     private static extern unsafe int Get_Reaction_Forces(int robotIdx, UnityReactionForce* outForces, int maxCount);
 
 
-
+/*
     [Header("시뮬레이션 스케일 동기화")]
     [Tooltip("렌더러의 스케일과 똑같이 맞춰주세요 (기본값 10)")]
     public float simScale = 10f; 
-
     [Header("상호작용할 유니티 물리 객체들 (구, 박스)")]
     public Collider[] interactiveObjects; 
-
-
     [Header("이 훈련장에 속한 로봇들 (자동 수집)")]
+    [ReadOnly] public VoxelPhysicsInfo[] localRobots;
+*/
+
+    [Header("Simulation Scale Synchronization")]
+    [Tooltip("Please match this exactly with the renderer's scale (Default: 10)")]
+    public float simScale = 10f; 
+
+    [Header("Interactable Unity Physics Objects (Spheres, Boxes)")]
+    public Collider[] interactiveObjects; 
+
+    [Header("Robots in this Training Area (Auto-Collected)")]
     [ReadOnly] public VoxelPhysicsInfo[] localRobots;
 
     

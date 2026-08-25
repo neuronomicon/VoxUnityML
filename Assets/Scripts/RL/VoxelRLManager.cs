@@ -38,17 +38,35 @@ public class VoxelRLManager : MonoBehaviour
     [Header("RL Synchronous Control")]
     public int actionSizePerRobot = 34; // 로봇 1대당 모터 복셀 수
 
+    [Header("RL Timing and Synchronization (Based on 100Hz)")]
+    [Tooltip("Number of physics steps to execute in C++ per FixedUpdate")]
+    public int stepsPerSimulationCycle = 125;
+    
+    [Tooltip("Decision Period applied uniformly to all robots")]
+    public int customDecisionPeriod = 4;
+
+    [Header("Auto-Detected RL Robots (Read Only)")]
+    [ReadOnly] public int numRlRobots = 0;
+
+    [Header("Counter for Completed C++ Computations")]
+    [ReadOnly] public int currentDecisionStep = 0;
+
+/*
     [Header("강화학습 타이밍 및 동기화 (100Hz 기준)")]
     [Tooltip("매 FixedUpdate마다 C++에서 진행할 물리 스텝")]
     public int stepsPerSimulationCycle = 125;
     
     [Tooltip("모든 로봇에 일괄 적용할 Decision Period")]
-    public int customDecisionPeriod = 4;
-
-    
+    public int customDecisionPeriod = 4;  
 
     [Header("자동 탐색된 RL 로봇 (Read Only)")]
     [ReadOnly] public int numRlRobots = 0; // 5대가 탐색될 예정
+
+    // [추가] C++가 연산을 몇 번 완료했는지 세는 카운터
+    [Header("C++가 연산을 몇 번 완료했는지 세는 카운터")]
+    [ReadOnly] public int currentDecisionStep = 0;
+*/   
+
 
     private VoxelRobotAgent[] activeAgents; // RL 로봇 5대를 담을 배열
     private int[] rlRobotIndices;           // C++에 보낼 로봇 번호표 배열 (예: 0, 2, 4, 7, 9)
@@ -128,11 +146,6 @@ public class VoxelRLManager : MonoBehaviour
             isWaitingForCpp = true;
         }
     }
-
-
-    // [추가] C++가 연산을 몇 번 완료했는지 세는 카운터
-    [Header("C++가 연산을 몇 번 완료했는지 세는 카운터")]
-    [ReadOnly] public int currentDecisionStep = 0;
 
 
     // [추가] 시동 타이머 변수
