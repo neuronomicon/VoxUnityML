@@ -1,4 +1,4 @@
-# [Voxelyze + Unity + ML-Agents] Parallel Multi-Soft-Robot RL Simulation Framework (ver 0.5)
+# [Voxelyze+Unity+ML-Agents] Parallel Multi-Soft-Robot RL Simulation Framework (ver 0.5)
 
 > **WORK IN PROGRESS (WIP)**
 > This project is currently under active development and research. 
