@@ -18,7 +18,7 @@
 *   **CPG Motor Actuation**: Translates AI commands into Central Pattern Generator (CPG) parameters, ensuring smooth, continuous sine-wave locomotion and preventing physics explosion.
 
 ### Quick User Manual
-(https://neuronomicon.github.io/VoxUM.html)[https://neuronomicon.github.io/VoxUM.html]
+https://neuronomicon.github.io/VoxUM.html
 
 ## 1. Introduction
 This system was developed to seamlessly integrate the computationally intensive physical simulation of soft-body robots with Reinforcement Learning (RL) training. Because Unity's native physics engine (PhysX) has limitations in calculating soft-body dynamics, **Voxelyze**, a high-performance C++ voxel physics engine, was adopted as the core physical simulator. 
