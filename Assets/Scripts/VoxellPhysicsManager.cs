@@ -111,6 +111,9 @@ public class VoxelPhysicsManager : MonoBehaviour
     // 여러 로봇의 명령을 섞어 담아둔 뒤 전송 시점에 필터링하여 분배합니다.
     private List<VoxelForceData> dragCommands = new List<VoxelForceData>();
 
+
+    // 🌟 1. VoxelEngineCore 참조 변수 추가 (is_ml_agent=false 일때 FixedUpdate() 실행 하기 위해)
+    private VoxelEngineCore engineCore;
     
     // 🌟 [변경] Awake() 삭제 후 InitializeArea()로 교체
     // 이제 혼자 깨어나지 않고, VoxelEngineCore가 순서대로 호출해 줍니다.
@@ -147,6 +150,8 @@ public class VoxelPhysicsManager : MonoBehaviour
                 rbDict[col.gameObject.GetInstanceID()] = col.attachedRigidbody;
             }
         }
+
+        engineCore = FindAnyObjectByType<VoxelEngineCore>();
     }
 
 
@@ -161,7 +166,17 @@ public class VoxelPhysicsManager : MonoBehaviour
     }
 
 
-    
+    // 이 함수를 VoxelPhysicsManager 내부에 새로 추가하세요!
+    private void FixedUpdate()
+    {
+        // 씬 초기화(InitializeArea)가 끝나서 로봇 목록이 있을 때만 실행
+        if (engineCore != null && !engineCore.is_ml_agent)
+        if (localRobots != null && localRobots.Length > 0)
+        {
+            // RL 모드가 켜져있든 꺼져있든, 매 물리 프레임마다 C++과 충돌 정보를 교환합니다.
+            SyncPhysicsWithCpp();
+        }
+    }
 
 
     // 1. 클래스 상단 변수 선언부에 길이가 1인 더미 배열을 하나 추가합니다.

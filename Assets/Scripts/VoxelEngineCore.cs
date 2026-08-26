@@ -21,7 +21,7 @@ using System.Runtime.InteropServices;
 using Unity.MLAgents;          // 🌟 추가: DecisionRequester, Agent를 인식하기 위해 필수!
 using Unity.MLAgents.Policies; // 🌟 추가: BehaviorParameters를 인식하기 위해 필수!
 
-
+using TMPro; // Button 텍스트 변경용
 
 public class VoxelEngineCore : MonoBehaviour
 {
@@ -68,9 +68,6 @@ public class VoxelEngineCore : MonoBehaviour
     [ReadOnly] public int maxNumOscillators = 2;    // MAX_NUM_OSC
 
 
-
-    // 유니티에서 관리할 현재 재생 상태
-    private int isPlaying = 0;
 
     // [추가] 중복 해제 방지용 플래그
     private bool isDllCleanedUp = false;
@@ -258,18 +255,63 @@ public class VoxelEngineCore : MonoBehaviour
 
 
 
+    // 기존의 public 변수 선언을 지우고, 인스펙터에 보이지 않는 private으로 변경합니다.
+    private TextMeshProUGUI toggleButtonText;
+
+    void Start() // 만약 이미 Start()나 Awake()가 있다면 그 안의 맨 윗부분에 아래 코드를 추가하세요.
+    {
+        // 1. 씬 전체에서 "GO/STOP" 이라는 이름을 가진 오브젝트를 찾습니다.
+        GameObject textObj = GameObject.Find("GO/STOP");
+        
+        // 2. 오브젝트를 성공적으로 찾았다면, 그 안에 있는 텍스트 컴포넌트를 가져와 연결합니다.
+        if (textObj != null)
+        {
+            toggleButtonText = textObj.GetComponent<TextMeshProUGUI>();
+        }
+        else
+        {
+            Debug.LogError("[VoxelEngineCore] 'GO/STOP' 텍스트 오브젝트를 찾을 수 없습니다! 이름을 확인해주세요.");
+        }
+        
+        ShowButtonText();
+    }
+
+
     // 2. 유니티 버튼에 연결할 함수 (반드시 public이어야 함!)
+    // 유니티에서 관리할 현재 재생 상태
+    private int isPlaying = 0;
+
     public void ToggleSimulationButton()
     {
-        // 상태 뒤집기 (true -> false, false -> true)
-        isPlaying = 1 - isPlaying;
-        
-        // C++ 로 바뀐 상태 전송
-        SetSimulationPlayState(isPlaying);
+        isPlaying = 1 - isPlaying;  // 상태 뒤집기 (true -> false, false -> true)
 
-        // RL 안할 때 스타트 버튼
-        if (isPlaying > 0) Debug.Log("[VoxelEngineCore] ▶ Simulation Start!");
-        else Debug.Log("[VoxelEngineCore] ⏸ Simulation Stop!");
+        ShowButtonText();
+    }
+
+    public void ShowButtonText()
+    {
+        if( is_ml_agent )
+        {
+            // 🌟 3. 버튼 텍스트 업데이트 로직 추가
+            if (toggleButtonText != null)
+            {
+                if (isPlaying > 0)  toggleButtonText.text = "Phase";
+                else                toggleButtonText.text = "Amplitude";
+            }
+
+            SetSimulationPlayState(isPlaying+3);  // C++ 로 바뀐 상태 전송
+
+            if (isPlaying > 0)  Debug.Log("[VoxelEngineCore] Voxel Color: Action Phase");
+            else                Debug.Log("[VoxelEngineCore] Voxel Color: Action Amplitude");
+        }
+        else
+        {               
+            SetSimulationPlayState(isPlaying);  // C++ 로 바뀐 상태 전송
+
+            // RL 안할 때 스타트 버튼
+            if (isPlaying > 0)  Debug.Log("[VoxelEngineCore] Simulation Start!");
+            else                Debug.Log("[VoxelEngineCore] Simulation Stop!");
+        }
     }
     
     

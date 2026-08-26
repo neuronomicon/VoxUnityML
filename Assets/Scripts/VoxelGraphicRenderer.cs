@@ -58,6 +58,8 @@ public class VoxelGraphicRenderer : MonoBehaviour
     private NativeArray<int> persistentLineIndices;
     private Material lineMaterial;
 
+
+
     void Start()
     {
     
@@ -68,6 +70,7 @@ public class VoxelGraphicRenderer : MonoBehaviour
         return;
 
     #else
+
 
         // 🌟 [추가 방어벽] -batchmode -nographics 로 실행되어 그래픽 카드가 꺼져있을 때 셰이더 크래시 원천 차단!
         if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null)
@@ -227,4 +230,14 @@ public class VoxelGraphicRenderer : MonoBehaviour
         if (persistentIndices.IsCreated) persistentIndices.Dispose();
         if (persistentLineIndices.IsCreated) persistentLineIndices.Dispose();
     }
+
+
+
+#if UNITY_EDITOR
+    private void OnDrawGizmos()
+    {
+        
+    }
+#endif
+
 }
