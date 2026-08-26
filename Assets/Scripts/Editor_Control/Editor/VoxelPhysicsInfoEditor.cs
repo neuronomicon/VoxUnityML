@@ -85,7 +85,7 @@ public class VoxelPhysicsInfoEditor : Editor
         EditorGUILayout.LabelField("Link Status", EditorStyles.boldLabel);
 
         // 사용자가 링크 인덱스를 입력하는 칸
-        EditorGUILayout.PropertyField(serializedObject.FindProperty("inspectLinkIndex"), new GUIContent("Link Inddex"));
+        EditorGUILayout.PropertyField(serializedObject.FindProperty("inspectLinkIndex"), new GUIContent("Link Index"));
 
         EditorGUILayout.Space();
 

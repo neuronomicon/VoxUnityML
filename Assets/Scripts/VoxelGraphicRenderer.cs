@@ -137,8 +137,8 @@ public class VoxelGraphicRenderer : MonoBehaviour
 
         //🌟 [핵심 해결책] 유니티 내부의 Job 생성 및 메모리 누수 검사를 완전히 건너뛰는 강제 옵션
         MeshUpdateFlags flags = MeshUpdateFlags.DontRecalculateBounds | 
-                                MeshUpdateFlags.DontValidateIndices | 
-                                MeshUpdateFlags.DontNotifyMeshUsers;
+                                MeshUpdateFlags.DontValidateIndices;  // | 
+                                //MeshUpdateFlags.DontNotifyMeshUsers;
 
         if (triCount > 0 && triCount <= maxVertexCapacity)
         // 방어벽: 포인터가 Zero가 아닐 때만 실행

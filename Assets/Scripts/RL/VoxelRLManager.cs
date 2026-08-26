@@ -67,6 +67,9 @@ public class VoxelRLManager : MonoBehaviour
     [ReadOnly] public int currentDecisionStep = 0;
 */   
 
+    // 🌟 [새로 추가] 씬에 있는 '모든' 로봇의 물리 정보 리스트 (에이전트가 없는 로봇 포함)
+    private VoxelPhysicsInfo[] allPhysicsInfos;
+
 
     private VoxelRobotAgent[] activeAgents; // RL 로봇 5대를 담을 배열
     private int[] rlRobotIndices;           // C++에 보낼 로봇 번호표 배열 (예: 0, 2, 4, 7, 9)
@@ -96,10 +99,15 @@ public class VoxelRLManager : MonoBehaviour
         // 🌟 씬에 존재하는 모든 훈련장(VoxelPhysicsManager)을 찾아 일제히 동기화를 지시합니다.
         allPhysicsAreas = FindObjectsByType<VoxelPhysicsManager>(FindObjectsSortMode.None);
 
-        activeAgents = FindObjectsByType<VoxelRobotAgent>(FindObjectsSortMode.None);
-        
+        activeAgents = FindObjectsByType<VoxelRobotAgent>(FindObjectsSortMode.None);        
         // 에이전트들을 부여받은 인덱스(0, 1, 2...) 순서대로 정렬하여 버퍼 꼬임 완벽 방지
         System.Array.Sort(activeAgents, (a, b) => a.robotIdx.CompareTo(b.robotIdx));
+
+        // 🌟 씬에 있는 모든 물리 객체를 찾아옵니다.
+        allPhysicsInfos = FindObjectsByType<VoxelPhysicsInfo>(FindObjectsSortMode.None);        
+        // (선택 사항) 로봇 인덱스 순서대로 깔끔하게 정렬
+        System.Array.Sort(allPhysicsInfos, (a, b) => a.robotIndex.CompareTo(b.robotIndex));
+
         
         numRlRobots = activeAgents.Length;
 
@@ -195,15 +203,23 @@ public class VoxelRLManager : MonoBehaviour
 
             if (currentDecisionStep % partialPeriod == 0)
             {
+                foreach (var physInfo in allPhysicsInfos)
+                {
+                    // 뇌(Agent)가 있든 없든, 물리 연산 결과는 무조건 렌더링/위치 정보로 갱신합니다.
+                    physInfo.ForceMonitorVoxelState();
+                }
+
+
                 int phaseIndex = (currentDecisionStep / partialPeriod) - 1; // 0, 1, 2, 3 인덱스
 
                 foreach (var agent in activeAgents)
                 {
-                    var physicsInfo = agent.GetComponent<VoxelPhysicsInfo>();
-                    if (physicsInfo != null) physicsInfo.ForceMonitorVoxelState();
+                    //var physicsInfo = agent.GetComponent<VoxelPhysicsInfo>();
+                    //if (physicsInfo != null) physicsInfo.ForceMonitorVoxelState();
                     
                     // 에이전트 내부 버퍼에 현재 위상의 상태(296개) 저장
-                    agent.RecordIntermediateState(phaseIndex); 
+                    //agent.RecordIntermediateState(phaseIndex);
+                    agent.TriggerIntermediatePhase(phaseIndex);
                 }
             }
 

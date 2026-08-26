@@ -128,6 +128,7 @@ public class VoxelPhysicsInfo : MonoBehaviour
         // [수정] 함수 호출부
         Get_Voxel_RealTime_States(robotIndex, out lastStatePtr, out lastVoxelCount, 
                                   out lastLinkStatePtr, out lastLinkCount, out currentRobotStep);
+
     
         BuildLinkLookupMap(); // [추가] 링크 맵 구축
 

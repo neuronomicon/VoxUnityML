@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d306081f4f05a694bafa4a4d3ec4c0a3, type: 3}
+  m_Name: TargetTracking_Vox33
+  m_EditorClassIdentifier: Assembly-CSharp::TargetTrackingProfile
+  selectedVoxFileName: 
+  behaviorName: VoxBot33
+  spaceSize: 1184
+  continuousActions: 66
+  maxStep: 40
+  minSpawnDist: 2.5
+  maxSpawnDist: 3.5
+  successReward: 5
+  failPenalty: -1
+  distanceRewardMultiplier: 2
+  targetReachThreshold: 0.2
+  expectedVoxelCount: 33
+  centerVoxelIdx: 16
+  forwardVoxelA: 17
+  forwardVoxelB: 15
+  rightVoxelA: 21
+  rightVoxelB: 11
