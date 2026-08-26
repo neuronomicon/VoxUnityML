@@ -55,7 +55,8 @@ public class VoxelEngineCore : MonoBehaviour
 
     
     
-    [ReadOnly] public string dllFolderPath = "C:/Z_SHIM/PROG_MAJOR/PROJECT/NeuronomicoN_VS2022/ProjectDLL";
+    //[ReadOnly] public string dllFolderPath = "C:/Z_SHIM/PROG_MAJOR/PROJECT/NeuronomicoN_VS2022/ProjectDLL";
+    [ReadOnly] public string dllFolderPath = "C:/Z_SHIM";
 
     [Tooltip("현재 사용 중인 DLL 파일입니다. (VoxelDllConfig.cs 에서 변경)")]
     [ReadOnly] public string activeDllName;

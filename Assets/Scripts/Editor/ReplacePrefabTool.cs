@@ -9,7 +9,8 @@ public class ReplacePrefabTool : EditorWindow
     // 🌟 일괄 변경할 기본 이름 설정
     public string baseName = "TrainingArea"; 
 
-    [MenuItem("Tools/프리팹 일괄 복구 툴")]
+    
+    [MenuItem("VoxUnityML/Prefab Restore Tool")]
     public static void ShowWindow()
     {
         GetWindow<ReplacePrefabTool>("프리팹 복구 툴");
