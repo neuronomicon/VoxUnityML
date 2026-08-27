@@ -528,8 +528,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::VoxelGraphicRenderer
   robotIndex: 0
-  maxVertexCapacity: 100000
-  maxLineVertexCapacity: 50000
+  maxVertexCapacity: 40000
+  maxLineVertexCapacity: 20000
 --- !u!114 &4602355626083466824
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -822,8 +822,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::VoxelGraphicRenderer
   robotIndex: 0
-  maxVertexCapacity: 100000
-  maxLineVertexCapacity: 50000
+  maxVertexCapacity: 40000
+  maxLineVertexCapacity: 20000
 --- !u!114 &4016032981532798493
 MonoBehaviour:
   m_ObjectHideFlags: 0

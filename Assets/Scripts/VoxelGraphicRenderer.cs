@@ -158,6 +158,10 @@ public class VoxelGraphicRenderer : MonoBehaviour
             // C++ 포인터의 데이터를 유니티의 안전한 영구 배열로 초고속 복사(MemCpy)합니다!
             UnsafeUtility.MemCpy(persistentTriangles.GetUnsafePtr(), (void*)triPtr, (long)triCount * sizeof(VtxDxAll));
 
+            // 🌟 [추가된 핵심 해결책] 전체 배열(64MB)을 통째로 넘기지 않고, 실제 존재하는 정점 개수만큼만 잘라서(Slice) 전달!
+            // 이렇게 하면 유니티 그래픽스 엔진이 쓸데없는 64MB짜리 거대 임시 버퍼를 만들지 않습니다.
+            NativeArray<VtxDxAll> triSlice = persistentTriangles.GetSubArray(0, triCount);
+
             mesh.SetVertexBufferData(persistentTriangles, 0, 0, triCount, 0, flags);
             mesh.SetSubMesh(0, new SubMeshDescriptor(0, triCount, MeshTopology.Triangles), flags);
         }
@@ -177,6 +181,9 @@ public class VoxelGraphicRenderer : MonoBehaviour
         {
             // 🌟 라인 데이터도 동일하게 안전한 영구 배열로 복사합니다.
             UnsafeUtility.MemCpy(persistentLines.GetUnsafePtr(), (void*)linePtr, (long)lineCount * sizeof(VtxDxAll));
+
+            // 🌟 [추가된 핵심 해결책] 라인 데이터도 실제 개수만큼만 슬라이스 처리
+            NativeArray<VtxDxAll> lineSlice = persistentLines.GetSubArray(0, lineCount);
 
             lineMesh.SetVertexBufferData(persistentLines, 0, 0, lineCount, 0, flags);
             lineMesh.SetSubMesh(0, new SubMeshDescriptor(0, lineCount, MeshTopology.Lines), flags);
