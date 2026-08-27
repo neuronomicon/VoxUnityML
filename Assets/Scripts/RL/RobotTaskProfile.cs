@@ -16,6 +16,10 @@ public abstract class RobotTaskProfile : ScriptableObject
     [Header("Robot Model (Body) Settings")]
     [HideInInspector] public string selectedVoxFileName;
 
+    // 🌟 [이곳에 추가!] 모든 태스크가 공통으로 알아야 할 로봇의 총 복셀 개수
+    [Header("로봇 공통 제원")]    
+    public int expectedVoxelCount = 33;
+
     [Header("🤖 ML-Agents Auto Settings (Behavior Parameters)")]
     [Tooltip("Training Behavior Name")]
     public string behaviorName = "VoxBot33";
@@ -29,8 +33,32 @@ public abstract class RobotTaskProfile : ScriptableObject
     [Tooltip("Max RL-NN steps per episode")]
     public int maxStep = 40;
 
+#if UNITY_EDITOR
+    private void OnValidate()
+    {
+        // 🌟 [수정] 유니티 에디터 안전장치: 지연 호출(Delay Call)을 사용하여 락(Lock) 충돌 방지
+        UnityEditor.EditorApplication.delayCall += () =>
+        {
+            // delayCall 내부에서는 오브젝트가 삭제되었을 수도 있으므로 안전 검사 필수
+            if (this == null) return; 
 
-    // ▼▼▼ 여기에 실시간 동기화 코드를 추가합니다 ▼▼▼
+            VoxelRobotAgent[] allAgents = FindObjectsByType<VoxelRobotAgent>(FindObjectsSortMode.None);
+            foreach (var agent in allAgents)
+            {
+                if (agent != null && agent.taskProfile == this)
+                {
+                    agent.ApplyProfileSettingsToComponents();
+                    
+                    UnityEditor.EditorUtility.SetDirty(agent);
+                    var bp = agent.GetComponent<Unity.MLAgents.Policies.BehaviorParameters>();
+                    if (bp != null) UnityEditor.EditorUtility.SetDirty(bp);
+                }
+            }
+        };
+    }
+#endif
+
+/*    // ▼▼▼ 여기에 실시간 동기화 코드를 추가합니다 ▼▼▼
 #if UNITY_EDITOR
     private void OnValidate()
     {
@@ -53,7 +81,7 @@ public abstract class RobotTaskProfile : ScriptableObject
         }
     }
 #endif
-
+*/
 
     public abstract Type GetStateType();
     public abstract RobotTaskState CreateState();

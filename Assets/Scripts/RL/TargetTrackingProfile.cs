@@ -21,7 +21,10 @@ public class TargetTrackingState : RobotTaskState
     public int freezeCount = 0;
     
     // 0.5초 동안 4단계 궤적을 저장할 내부 버퍼 (4단계 x 296개 값)[cite: 1, 3]
-    public float[,] observationBuffer = new float[4, 296];
+    //public float[,] observationBuffer = new float[4, 296];
+
+    // [수정] 크기를 고정하지 않고 선언만 해둠
+    public float[,] observationBuffer;
 }
 
 
@@ -41,7 +44,7 @@ public class TargetTrackingProfile : RobotTaskProfile
     public float targetReachThreshold = 0.2f; 
 
     [Header("🦴 Robot Anatomy Parameters")]
-    public int expectedVoxelCount = 33; 
+    //public int expectedVoxelCount = 33; 
     public int centerVoxelIdx = 16; 
     public int forwardVoxelA = 17; 
     public int forwardVoxelB = 15; 
@@ -57,6 +60,12 @@ public class TargetTrackingProfile : RobotTaskProfile
 
         var tState = state as TargetTrackingState;
 
+        // 에이전트가 계산해둔 버퍼 크기를 가져와서 4개(Phase)의 슬롯을 동적 생성
+        if (tState.observationBuffer == null || tState.observationBuffer.GetLength(1) != agent.StateBufferSize)
+        {
+            tState.observationBuffer = new float[4, agent.StateBufferSize];
+        }
+
         // 목표물(Target)을 로봇 근처 일정 범위 내 랜덤 재배치[cite: 1, 3]
         if (tState.targetTransform != null)
         {
@@ -65,7 +74,7 @@ public class TargetTrackingProfile : RobotTaskProfile
             tState.targetTransform.localPosition = new Vector3(randomDir.x * randomDist - 0.25f, 0.5f, randomDir.y * randomDist - 0.25f);
         }
 
-        Vector3 robotCoM = Vector3.zero; 
+        Vector3 robotCoM = agent.GetRobotCenterOfMass();
         
         if (tState.targetTransform != null)
         {
@@ -90,7 +99,7 @@ public class TargetTrackingProfile : RobotTaskProfile
                                                              tState.targetTransform );
 
         // 버퍼의 해당 위상(Phase)에 296개 값을 통째로 복사해 둠[cite: 1, 3]
-        for (int i = 0; i < 296; i++)
+        for (int i = 0; i < agent.StateBufferSize; i++)
         {
             tState.observationBuffer[phaseIndex, i] = currentState[i];
         }
@@ -104,7 +113,7 @@ public class TargetTrackingProfile : RobotTaskProfile
         // 1/4 ~ 4/4의 1184개(296 x 4) 데이터를 순서대로 신경망에 모두 밀어 넣음[cite: 1, 3]
         for (int phase = 0; phase < 4; phase++)
         {
-            for (int i = 0; i < 296; i++)
+            for (int i = 0; i < agent.StateBufferSize; i++)
             {
                 sensor.AddObservation(tState.observationBuffer[phase, i]);
             }

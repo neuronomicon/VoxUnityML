@@ -313,55 +313,69 @@ public class VoxelPhysicsInfo : MonoBehaviour
     // 빌드 버전(실행 파일) 화면에 대시보드를 그리는 인게임 UI 함수
     // =========================================================
 
-    //[Header("인게임 대시보드 표시 여부")]
     private bool showDashboardInGame = false;
+
+    // 🌟 [최적화 1] 매 프레임 생성되지 않도록 변수를 밖으로 뺌
+    private GUIStyle boxStyle;
+    private GUIStyle titleStyle;
+    
+    // 🌟 [최적화 2] 텍스트 캐싱용 타이머 변수
+    private string cachedDashboardText = "";
+    private float dashboardUpdateTimer = 0f;
+    private const float DASHBOARD_UPDATE_INTERVAL = 0.2f; // 0.2초마다 갱신 (초당 5번)
 
     private void OnGUI()
     {
-        // 1. 표시 옵션이 꺼져 있거나, 서버 빌드(그래픽 없음)일 때는 그리지 않음
 #if UNITY_SERVER
         return;
 #endif
-        if (!showDashboardInGame) return;
+        if (!showDashboardInGame || robotIndex != 0) return;
 
-        if( robotIndex != 0 ) return;
+        // 1. GUIStyle 딱 한 번만 메모리 할당 (Zero-Allocation)
+        if (boxStyle == null)
+        {
+            boxStyle = new GUIStyle(GUI.skin.box);
+            boxStyle.fontSize = 14;
+            boxStyle.alignment = TextAnchor.UpperLeft;
+            boxStyle.normal.textColor = Color.white;
 
-        UpdateEditorInspector();
+            titleStyle = new GUIStyle(GUI.skin.label);
+            titleStyle.fontSize = 15;
+            titleStyle.fontStyle = FontStyle.Bold;
+            titleStyle.normal.textColor = Color.yellow;
+        }
 
-        // 2. 화면에 표시할 텍스트 구성 (에디터 스크립트에서 썼던 것과 동일)
-        string dashboardText = 
-            $"[ 로봇 인덱스 ] {robotIndex}\n" +
-            $"[ 현재 스텝 ] {currentRobotStep:F3}\n" +
-            $"[ 전체 복셀 수 ] {numTotalVoxel} 개\n" +
-            $"[ 모터 복셀 수 ] {numMotorVoxel} 개\n" +
-            $"-----------------------------------\n" +
-            $"[ 대상 복셀 번호 ] {inspectVoxelIndex}\n" +
-            $"[ 위치 ] {currentPos.ToString("F4")}\n" +
-            $"[ 속도 ] {currentVel.ToString("F4")}\n" +
-            $"[ 각속도 ] {currentAngVel.ToString("F4")}\n" +
-            $"[ 외력 ] {currentAppliedForce.ToString("F4")}\n" +
-            $"[ 압력 ] {currentPressure.ToString("F4")}\n" +
-            $"-----------------------------------\n" +
-            $"수신된 복셀 데이터 : {lastVoxelCount} 개\n" +
-            $"수신된 링크 데이터 : {lastLinkCount} 개";
+        // 2. 타이머를 돌려서 0.2초에 한 번만 거대한 문자열을 만듦 (가비지 95% 감소!)
+        dashboardUpdateTimer += Time.deltaTime;
+        if (dashboardUpdateTimer >= DASHBOARD_UPDATE_INTERVAL || string.IsNullOrEmpty(cachedDashboardText))
+        {
+            dashboardUpdateTimer = 0f;
+            
+            // 텍스트를 만들 때만 인스펙터 변수 갱신
+            UpdateEditorInspector();
 
-        // 3. UI 스타일 설정 (배경색, 글자 크기 등)
-        GUIStyle boxStyle = new GUIStyle(GUI.skin.box);
-        boxStyle.fontSize = 14;
-        boxStyle.alignment = TextAnchor.UpperLeft;
-        boxStyle.normal.textColor = Color.white;
+            cachedDashboardText = 
+                $"[ 로봇 인덱스 ] {robotIndex}\n" +
+                $"[ 현재 스텝 ] {currentRobotStep:F3}\n" +
+                $"[ 전체 복셀 수 ] {numTotalVoxel} 개\n" +
+                $"[ 모터 복셀 수 ] {numMotorVoxel} 개\n" +
+                $"-----------------------------------\n" +
+                $"[ 대상 복셀 번호 ] {inspectVoxelIndex}\n" +
+                $"[ 위치 ] {currentPos.ToString("F4")}\n" +
+                $"[ 속도 ] {currentVel.ToString("F4")}\n" +
+                $"[ 각속도 ] {currentAngVel.ToString("F4")}\n" +
+                $"[ 외력 ] {currentAppliedForce.ToString("F4")}\n" +
+                $"[ 압력 ] {currentPressure.ToString("F4")}\n" +
+                $"-----------------------------------\n" +
+                $"수신된 복셀 데이터 : {lastVoxelCount} 개\n" +
+                $"수신된 링크 데이터 : {lastLinkCount} 개";
+        }
 
         // 반투명한 검은색 배경 설정
         GUI.backgroundColor = new Color(0, 0, 0, 0.8f);
 
-        // 4. 화면 좌측 상단에 박스와 텍스트 렌더링 (x: 10, y: 10, 너비: 300, 높이: 320)
-        GUI.Box(new Rect(10, 10, 300, 320), "\n" + dashboardText, boxStyle);
-        
-        // 상단 타이틀 텍스트 렌더링
-        GUIStyle titleStyle = new GUIStyle(GUI.skin.label);
-        titleStyle.fontSize = 15;
-        titleStyle.fontStyle = FontStyle.Bold;
-        titleStyle.normal.textColor = Color.yellow;
+        // 3. 만들어둔 스타일과 캐싱된 텍스트를 재사용하여 그리기만 함
+        GUI.Box(new Rect(10, 10, 300, 320), "\n" + cachedDashboardText, boxStyle);
         GUI.Label(new Rect(20, 15, 280, 25), "🤖 로봇 물리 실시간 대시보드", titleStyle);
     }
 
