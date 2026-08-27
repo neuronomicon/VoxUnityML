@@ -59,6 +59,10 @@ public class VoxelGraphicRenderer : MonoBehaviour
     private Material lineMaterial;
 
 
+    // 🌟2026-08-27  [핵심 해결책] 유니티가 완벽하게 통제하는 영구 메모리 배열 선언
+    private NativeArray<VtxDxAll> persistentTriangles;
+    private NativeArray<VtxDxAll> persistentLines;
+
 
     void Start()
     {
@@ -69,7 +73,7 @@ public class VoxelGraphicRenderer : MonoBehaviour
         this.enabled = false;
         return;
 
-    #else
+    #endif
 
 
         // 🌟 [추가 방어벽] -batchmode -nographics 로 실행되어 그래픽 카드가 꺼져있을 때 셰이더 크래시 원천 차단!
@@ -125,9 +129,85 @@ public class VoxelGraphicRenderer : MonoBehaviour
         lineMf.mesh = lineMesh;
         lineMr.material = lineMaterial;
 
+        // 🌟2026-08-27  [핵심 추가] 게임 시작 시 안전한 영구 배열(Persistent)을 딱 한 번만 할당합니다.
+        persistentTriangles = new NativeArray<VtxDxAll>(maxVertexCapacity, Allocator.Persistent);
+        persistentLines = new NativeArray<VtxDxAll>(maxLineVertexCapacity, Allocator.Persistent);
+    }
+
+
+
+
+    unsafe void Update()
+    {
+    #if !UNITY_SERVER
+
+        IntPtr triPtr, linePtr;
+        int triCount, lineCount;
+
+        Fill_Voxel_Triangle_and_Line( robotIndex, out triPtr, out triCount, out linePtr, out lineCount);
+
+        MeshUpdateFlags flags = MeshUpdateFlags.DontRecalculateBounds | 
+                                MeshUpdateFlags.DontValidateIndices; 
+
+        // ==============================================================
+        // 1. 삼각형 렌더링 처리
+        // ==============================================================
+        if (triPtr != IntPtr.Zero && triCount > 0 && triCount <= maxVertexCapacity)
+        {
+            // 🌟 [최종 해결책] 꼼수 포장(Allocator.None)을 버리고, 
+            // C++ 포인터의 데이터를 유니티의 안전한 영구 배열로 초고속 복사(MemCpy)합니다!
+            UnsafeUtility.MemCpy(persistentTriangles.GetUnsafePtr(), (void*)triPtr, (long)triCount * sizeof(VtxDxAll));
+
+            mesh.SetVertexBufferData(persistentTriangles, 0, 0, triCount, 0, flags);
+            mesh.SetSubMesh(0, new SubMeshDescriptor(0, triCount, MeshTopology.Triangles), flags);
+        }
+        else if (triCount > maxVertexCapacity)
+        {
+            Debug.LogWarning($"[VoxelGraphicRenderer] Robot {robotIndex}'s vertex count ({triCount}) exceeded the maximum capacity ({maxVertexCapacity})!");
+        }
+        else 
+        {
+            mesh.SetSubMesh(0, new SubMeshDescriptor(0, 0, MeshTopology.Triangles), flags);
+        }
+
+        // ==============================================================
+        // 2. 라인 렌더링 처리
+        // ==============================================================
+        if (linePtr != IntPtr.Zero && lineCount > 0 && lineCount <= maxLineVertexCapacity)
+        {
+            // 🌟 라인 데이터도 동일하게 안전한 영구 배열로 복사합니다.
+            UnsafeUtility.MemCpy(persistentLines.GetUnsafePtr(), (void*)linePtr, (long)lineCount * sizeof(VtxDxAll));
+
+            lineMesh.SetVertexBufferData(persistentLines, 0, 0, lineCount, 0, flags);
+            lineMesh.SetSubMesh(0, new SubMeshDescriptor(0, lineCount, MeshTopology.Lines), flags);
+        }
+        else if (lineCount > maxLineVertexCapacity)
+        {
+            Debug.LogWarning($"[VoxelGraphicRenderer] Robot {robotIndex}'s line count ({lineCount}) exceeded the maximum capacity ({maxLineVertexCapacity})!");
+        }
+        else 
+        {
+            lineMesh.SetSubMesh(0, new SubMeshDescriptor(0, 0, MeshTopology.Lines), flags);
+        }
+
     #endif
     }
 
+    void OnDestroy()
+    {
+        // 🌟 할당했던 영구 배열들을 안전하게 폐기합니다.
+        if (persistentIndices.IsCreated) persistentIndices.Dispose();
+        if (persistentLineIndices.IsCreated) persistentLineIndices.Dispose();
+        if (persistentTriangles.IsCreated) persistentTriangles.Dispose();
+        if (persistentLines.IsCreated) persistentLines.Dispose();
+    }
+
+
+    
+
+
+
+    /*
     unsafe void Update()
     {
     #if !UNITY_SERVER
@@ -138,12 +218,12 @@ public class VoxelGraphicRenderer : MonoBehaviour
         // C++에서 렌더링 데이터 훔쳐오기
         Fill_Voxel_Triangle_and_Line( robotIndex, out triPtr, out triCount, out linePtr, out lineCount);
 
-        //🌟 [핵심 해결책] 유니티 내부의 Job 생성 및 메모리 누수 검사를 완전히 건너뛰는 강제 옵션
+        //[핵심 해결책] 유니티 내부의 Job 생성 및 메모리 누수 검사를 완전히 건너뛰는 강제 옵션
         MeshUpdateFlags flags = MeshUpdateFlags.DontRecalculateBounds | 
                                 MeshUpdateFlags.DontValidateIndices;  // | 
                                 //MeshUpdateFlags.DontNotifyMeshUsers;
 
-        if (triCount > 0 && triCount <= maxVertexCapacity)
+        
         // 방어벽: 포인터가 Zero가 아닐 때만 실행
         if (triPtr != IntPtr.Zero && triCount > 0 && triCount <= maxVertexCapacity)
         {
@@ -230,7 +310,7 @@ public class VoxelGraphicRenderer : MonoBehaviour
         if (persistentIndices.IsCreated) persistentIndices.Dispose();
         if (persistentLineIndices.IsCreated) persistentLineIndices.Dispose();
     }
-
+*/
 
 
 #if UNITY_EDITOR
