@@ -13,36 +13,36 @@ public class ReplacePrefabTool : EditorWindow
     [MenuItem("VoxUnityML/Prefab Restore Tool")]
     public static void ShowWindow()
     {
-        GetWindow<ReplacePrefabTool>("프리팹 복구 툴");
+        GetWindow<ReplacePrefabTool>("Prefab Restore Tool");
     }
 
     void OnGUI()
     {
-        GUILayout.Label("1. 프로젝트 창의 정상 프리팹을 아래 빈칸에 넣으세요.", EditorStyles.wordWrappedLabel);
-        newPrefab = (GameObject)EditorGUILayout.ObjectField("정상 프리팹", newPrefab, typeof(GameObject), false);
+        GUILayout.Label("1. Drop the valid prefab from the Project window into the slot below.", EditorStyles.wordWrappedLabel);
+        newPrefab = (GameObject)EditorGUILayout.ObjectField("Valid Prefab", newPrefab, typeof(GameObject), false);
 
         EditorGUILayout.Space();
         
         // 🌟 이름 설정 UI 추가
-        GUILayout.Label("2. 생성될 오브젝트들의 기본 이름을 정해주세요.", EditorStyles.wordWrappedLabel);
-        baseName = EditorGUILayout.TextField("새 이름 (Base Name)", baseName);
+        GUILayout.Label("2. Set the base name for the generated objects.", EditorStyles.wordWrappedLabel);
+        baseName = EditorGUILayout.TextField("New Name (Base Name)", baseName);
 
         EditorGUILayout.Space();
-        GUILayout.Label("3. 하이어라키 창에서 붉은색 오브젝트들을 모두 선택하세요.", EditorStyles.wordWrappedLabel);
+        GUILayout.Label("3. Select all the red objects in the Hierarchy window.", EditorStyles.wordWrappedLabel);
 
         EditorGUILayout.Space();
-        if (GUILayout.Button("선택한 오브젝트 교체 및 이름 일괄 변경!", GUILayout.Height(40)))
+        if (GUILayout.Button("Replace Selected Objects & Rename All!", GUILayout.Height(40)))
         {
             if (newPrefab == null)
             {
-                EditorUtility.DisplayDialog("경고", "먼저 교체할 원본 프리팹을 드래그해서 넣어주세요!", "확인");
+                EditorUtility.DisplayDialog("Warning", "Please drag and drop the source prefab first!", "OK");
                 return;
             }
 
             GameObject[] selectedObjects = Selection.gameObjects;
             if (selectedObjects.Length == 0)
             {
-                EditorUtility.DisplayDialog("경고", "하이어라키 창에서 교체할 오브젝트들을 먼저 선택해주세요!", "확인");
+                EditorUtility.DisplayDialog("Warning", "Please select the objects to replace in the Hierarchy window first!", "OK");
                 return;
             }
 
@@ -68,7 +68,7 @@ public class ReplacePrefabTool : EditorWindow
                 Undo.DestroyObjectImmediate(oldGo);
             }
             
-            Debug.Log($"총 {selectedObjects.Length}개의 프리팹 복구 및 이름 정리가 완료되었습니다!");
+            Debug.Log($"A total of {selectedObjects.Length} prefabs have been successfully restored and renamed!");
         }
     }
 }

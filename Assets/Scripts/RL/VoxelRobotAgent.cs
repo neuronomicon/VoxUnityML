@@ -29,7 +29,7 @@ public class VoxelRobotAgent : Agent // ML-Agents의 Agent 클래스 상속[cite
     [DllImport(VoxelDllConfig.DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
     public static extern void Reset_Voxel_Unity(int robotIdx); // C++ 초기화 함수 연결[cite: 1, 3, 11]
 
-    [Header("🤖 로봇 기본 정보")]
+    [Header("🤖 Robot ID")]
     public int robotIdx = 0;
 
     [HideInInspector] public VoxelRLManager rlManager;
@@ -38,7 +38,7 @@ public class VoxelRobotAgent : Agent // ML-Agents의 Agent 클래스 상속[cite
 
 
 
-    [Header("🧠 훈련 로직 프로필 (에셋을 드래그하세요!)")]
+    [Header("🧠 Training Logic Profile (Drag S.O. Asset!)")]
     public RobotTaskProfile taskProfile;
 
     [SerializeReference] 

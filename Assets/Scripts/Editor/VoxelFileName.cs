@@ -51,7 +51,7 @@ public class VoxelRobotInstanceEditor : Editor {
         EditorGUILayout.LabelField("Voxel File Settings", EditorStyles.boldLabel);
 
         if (voxFiles == null || voxFiles.Length == 0) {
-            EditorGUILayout.HelpBox("StreamingAssets 폴더에 .vox 파일이 없습니다.", MessageType.Warning);
+            EditorGUILayout.HelpBox("No *.vox in StreamingAssets folder", MessageType.Warning);
         } else {
             // 현재 선택된 파일의 인덱스 찾기
             selectedIndex = Mathf.Max(0, System.Array.IndexOf(voxFiles, script.selectedVoxFileName));

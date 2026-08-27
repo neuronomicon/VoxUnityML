@@ -14,7 +14,7 @@ public class TargetTrackingState : RobotTaskState
     [Header("🎯 Target Object (Drag Your Object!)")]
     public Transform targetTransform; // 🌟 씬 오브젝트 연결 슬롯이 이쪽으로 이동!
 
-    [Header("🎯 기타 실시간 변수들")]
+    [Header("🎯 Task Specific Realtime Variables")]
     public float previousDistance;
     public Vector3 currentVoxelUpVector = Vector3.up;
     public Vector3 lastCheckedPos = Vector3.zero;
@@ -31,7 +31,7 @@ public class TargetTrackingState : RobotTaskState
 [CreateAssetMenu(fileName = "NewTargetTrackingTask", menuName = "RL Tasks/Target Tracking")]
 public class TargetTrackingProfile : RobotTaskProfile
 {
-    [Header("🎯 훈련 규칙 (Task Parameters)")]
+    [Header("🎯 Task Parameters")]
     public float minSpawnDist = 2.5f; 
     public float maxSpawnDist = 3.5f; 
 
@@ -40,7 +40,7 @@ public class TargetTrackingProfile : RobotTaskProfile
     public float distanceRewardMultiplier = 2.0f; 
     public float targetReachThreshold = 0.2f; 
 
-    [Header("🦴 로봇 신체 매핑 (Anatomy Parameters)")]
+    [Header("🦴 Robot Anatomy Parameters")]
     public int expectedVoxelCount = 33; 
     public int centerVoxelIdx = 16; 
     public int forwardVoxelA = 17; 

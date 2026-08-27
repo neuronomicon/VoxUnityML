@@ -98,7 +98,7 @@ public class VoxelEngineCore : MonoBehaviour
         var requesters = FindObjectsByType<DecisionRequester>(FindObjectsSortMode.None);
         foreach (var r in requesters) r.enabled = active;
 
-        Debug.Log($"[VoxelEngineCore] All ML-Agents checkboxes set: {(active ? "활성화(ON)" : "비활성화(OFF)")}");
+        Debug.Log($"[VoxelEngineCore] All ML-Agents checkboxes set: {(active ? "Enabled(ON)" : "Disabled(OFF)")}");
     } 
 
     // 유니티 에디터에서 스크립트가 로드되거나 값이 바뀔 때 자동으로 호출되는 함수
@@ -270,7 +270,7 @@ public class VoxelEngineCore : MonoBehaviour
         }
         else
         {
-            Debug.LogError("[VoxelEngineCore] 'GO/STOP' 텍스트 오브젝트를 찾을 수 없습니다! 이름을 확인해주세요.");
+            Debug.LogError("[VoxelEngineCore] Can't find 'GO/STOP' Text Object!");
         }
         
         ShowButtonText();

@@ -60,7 +60,7 @@ public class VoxelPhysicsInfo : MonoBehaviour
                                                         out double robotStep);
 
     
-    [Header("실시간 복셀 상태 모니터링")]
+    [Header("Realtime Voxel Status")]
     [ReadOnly] public int robotIndex = 0;
     [ReadOnly] public int numTotalVoxel = 0;
     [ReadOnly] public int numMotorVoxel = 0;

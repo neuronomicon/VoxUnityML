@@ -56,13 +56,13 @@ public class AutoBuilder : EditorWindow
 
     private void OnGUI()
     {
-        GUILayout.Label("빌드할 훈련장 씬(Scene)을 선택하세요", EditorStyles.boldLabel);
+        GUILayout.Label("Select the training scene to build", EditorStyles.boldLabel);
         EditorGUILayout.Space();
 
         if (sceneNames == null || sceneNames.Length == 0)
         {
-            EditorGUILayout.HelpBox("Build Settings에 등록된 씬이 없습니다. [File -> Build Settings] 창에 씬을 드래그해서 넣어주세요.", MessageType.Warning);
-            if (GUILayout.Button("새로고침")) RefreshScenes();
+            EditorGUILayout.HelpBox("No scenes registered in Build Settings. Please drag and drop scenes into the [File -> Build Settings] window.", MessageType.Warning);
+            if (GUILayout.Button("Refresh")) RefreshScenes();
             return;
         }
 
@@ -70,7 +70,7 @@ public class AutoBuilder : EditorWindow
 
         EditorGUILayout.Space();
 
-        if (GUILayout.Button("선택한 씬 듀얼 빌드 (Graphic + Server)", GUILayout.Height(40)))
+        if (GUILayout.Button("Dual Build Selected Scene (Graphic + Server)", GUILayout.Height(40)))
         {
             BuildSelectedScene(scenePaths[selectedSceneIndex], sceneNames[selectedSceneIndex]);
         }
@@ -83,13 +83,13 @@ public class AutoBuilder : EditorWindow
         if (!Directory.Exists(basePath)) Directory.CreateDirectory(basePath);
 
         string[] scenesToBuild = new string[] { scenePath };
-        Debug.Log($"🚀 [AutoBuilder] '{sceneName}' 씬 듀얼 빌드 시작...");
+        Debug.Log($"🚀 [AutoBuilder] Starting dual build for scene '{sceneName}'...");
 
         // ==========================================
         // 1. 그래픽(Window) 모드 빌드
         // ==========================================
-        string graphicPath = basePath + "/GraphicMode/VoxelSim.exe";
-        Debug.Log("⏳ [AutoBuilder] 1/2: 그래픽(Window) 모드 빌드 중...");
+        string graphicPath = basePath + "/GraphicMode/VoxelSim_Graphics.exe";
+        Debug.Log("⏳ [AutoBuilder] 1/2: Building Graphic (Window) mode...");
         BuildPipeline.BuildPlayer(new BuildPlayerOptions
         {
             scenes = scenesToBuild,
@@ -105,7 +105,7 @@ public class AutoBuilder : EditorWindow
         // 2. 서버(Server) 모드 빌드
         // ==========================================
         string serverPath = basePath + "/ServerMode/VoxelSim_Server.exe";
-        Debug.Log("⏳ [AutoBuilder] 2/2: 서버(Server) 모드 빌드 중...");
+        Debug.Log("⏳ [AutoBuilder] 2/2: Building Server mode...");
         BuildPipeline.BuildPlayer(new BuildPlayerOptions
         {
             scenes = scenesToBuild,
@@ -117,7 +117,7 @@ public class AutoBuilder : EditorWindow
         // 🌟 빌드 직후 StreamingAssets 복사
         CopyStreamingAssetsToBuild(serverPath);
         
-        Debug.Log($"✅ [AutoBuilder] '{sceneName}' 씬 빌드 및 에셋 복사 완료!");
+        Debug.Log($"✅ [AutoBuilder] Build and asset copying for scene '{sceneName}' completed!");
 
 
         // 1. 서브타겟을 Server에서 일반 Player 모드로 확실하게 되돌림
@@ -144,11 +144,11 @@ public class AutoBuilder : EditorWindow
         if (Directory.Exists(sourceStreamingAssetsDir))
         {
             CopyDirectory(sourceStreamingAssetsDir, targetStreamingAssetsDir);
-            Debug.Log($"📁 복사 완료: {targetStreamingAssetsDir}");
+            Debug.Log($"📁 Copy completed: {targetStreamingAssetsDir}");
         }
         else
         {
-            Debug.LogWarning("⚠️ 원본 StreamingAssets 폴더가 존재하지 않아 복사를 건너뜁니다.");
+            Debug.LogWarning("⚠️ Source StreamingAssets folder does not exist. Skipping copy.");
         }
     }
 

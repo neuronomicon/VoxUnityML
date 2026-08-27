@@ -41,9 +41,9 @@ public static class WindowsConsole
 
         Application.logMessageReceived += HandleLog;
         
-        Console.WriteLine("======================================");
-        Console.WriteLine("  Unity 실시간 디버그 터미널 활성화됨  ");
-        Console.WriteLine("======================================");
+        Console.WriteLine("==========================================");
+        Console.WriteLine("  Unity realtime debug console activated  ");
+        Console.WriteLine("==========================================");
 #endif
     }
 

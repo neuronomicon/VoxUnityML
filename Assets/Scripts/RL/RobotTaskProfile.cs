@@ -11,22 +11,22 @@ using Unity.MLAgents.Actuators;
 public abstract class RobotTaskState { }
 
 public abstract class RobotTaskProfile : ScriptableObject
-{       
-    [Header("로봇 모델(Body) 설정")]
+{      
+    
+    [Header("Robot Model (Body) Settings")]
     [HideInInspector] public string selectedVoxFileName;
 
-
-    [Header("🤖 ML-Agents 자동 설정 (Behavior Parameters)")]
-    [Tooltip("훈련 이름 (예: VoxBot33)")]
+    [Header("🤖 ML-Agents Auto Settings (Behavior Parameters)")]
+    [Tooltip("Training Behavior Name")]
     public string behaviorName = "VoxBot33";
     
-    [Tooltip("센서 관측값의 총 개수 (예: 1184)")]
+    [Tooltip("Total number of sensor observations")]
     public int spaceSize = 1184;
     
-    [Tooltip("모터 제어 액션의 총 개수 (예: 66)")]
+    [Tooltip("Total number of motor control actions")]
     public int continuousActions = 66;
     
-    [Tooltip("에피소드 최대 스텝 (물리 프레임 기준, 예: 500)")]
+    [Tooltip("Max RL-NN steps per episode")]
     public int maxStep = 40;
 
 
@@ -70,3 +70,23 @@ public abstract class RobotTaskProfile : ScriptableObject
     public abstract void OnActionReceived(VoxelRobotAgent agent, ActionBuffers actionBuffers, RobotTaskState state);
     public abstract void Heuristic(VoxelRobotAgent agent, in ActionBuffers actionsOut, RobotTaskState state);
 }
+
+
+/*
+[Header("로봇 모델(Body) 설정")]
+    [HideInInspector] public string selectedVoxFileName;
+
+
+    [Header("🤖 ML-Agents 자동 설정 (Behavior Parameters)")]
+    [Tooltip("훈련 이름 (예: VoxBot33)")]
+    public string behaviorName = "VoxBot33";
+    
+    [Tooltip("센서 관측값의 총 개수 (예: 1184)")]
+    public int spaceSize = 1184;
+    
+    [Tooltip("모터 제어 액션의 총 개수 (예: 66)")]
+    public int continuousActions = 66;
+    
+    [Tooltip("에피소드 최대 스텝 (물리 프레임 기준, 예: 500)")]
+    public int maxStep = 40;
+*/
