@@ -64,6 +64,7 @@ public class VoxelGraphicRenderer : MonoBehaviour
     private NativeArray<VtxDxAll> persistentLines;
 
 
+
     void Start()
     {
     
@@ -136,18 +137,30 @@ public class VoxelGraphicRenderer : MonoBehaviour
 
 
 
+    private float renderTimer = 0f;
+    private float renderInterval = 1f / 60f; // 20 FPS로 렌더링 제한
 
     unsafe void Update()
     {
     #if !UNITY_SERVER
+
+        
+        // 🌟 렌더링 주기 제한 (GPU 버퍼 적체 방지)
+        renderTimer += Time.deltaTime;
+        if (renderTimer < renderInterval) return;
+        renderTimer = 0f;
+
 
         IntPtr triPtr, linePtr;
         int triCount, lineCount;
 
         Fill_Voxel_Triangle_and_Line( robotIndex, out triPtr, out triCount, out linePtr, out lineCount);
 
-        MeshUpdateFlags flags = MeshUpdateFlags.DontRecalculateBounds | 
-                                MeshUpdateFlags.DontValidateIndices; 
+        //MeshUpdateFlags flags = MeshUpdateFlags.DontRecalculateBounds | 
+         //                       MeshUpdateFlags.DontValidateIndices |
+          //                      MeshUpdateFlags.DontNotifyMeshUsers; 
+
+        MeshUpdateFlags flags = MeshUpdateFlags.Default;
 
         // ==============================================================
         // 1. 삼각형 렌더링 처리
@@ -160,7 +173,7 @@ public class VoxelGraphicRenderer : MonoBehaviour
 
             // 🌟 [추가된 핵심 해결책] 전체 배열(64MB)을 통째로 넘기지 않고, 실제 존재하는 정점 개수만큼만 잘라서(Slice) 전달!
             // 이렇게 하면 유니티 그래픽스 엔진이 쓸데없는 64MB짜리 거대 임시 버퍼를 만들지 않습니다.
-            NativeArray<VtxDxAll> triSlice = persistentTriangles.GetSubArray(0, triCount);
+            //NativeArray<VtxDxAll> triSlice = persistentTriangles.GetSubArray(0, triCount);
 
             mesh.SetVertexBufferData(persistentTriangles, 0, 0, triCount, 0, flags);
             mesh.SetSubMesh(0, new SubMeshDescriptor(0, triCount, MeshTopology.Triangles), flags);
@@ -183,7 +196,7 @@ public class VoxelGraphicRenderer : MonoBehaviour
             UnsafeUtility.MemCpy(persistentLines.GetUnsafePtr(), (void*)linePtr, (long)lineCount * sizeof(VtxDxAll));
 
             // 🌟 [추가된 핵심 해결책] 라인 데이터도 실제 개수만큼만 슬라이스 처리
-            NativeArray<VtxDxAll> lineSlice = persistentLines.GetSubArray(0, lineCount);
+            //NativeArray<VtxDxAll> lineSlice = persistentLines.GetSubArray(0, lineCount);
 
             lineMesh.SetVertexBufferData(persistentLines, 0, 0, lineCount, 0, flags);
             lineMesh.SetSubMesh(0, new SubMeshDescriptor(0, lineCount, MeshTopology.Lines), flags);
@@ -207,6 +220,12 @@ public class VoxelGraphicRenderer : MonoBehaviour
         if (persistentLineIndices.IsCreated) persistentLineIndices.Dispose();
         if (persistentTriangles.IsCreated) persistentTriangles.Dispose();
         if (persistentLines.IsCreated) persistentLines.Dispose();
+
+        // 머티리얼 메모리 누수 방지
+        if (lineMaterial != null)
+        {
+            Destroy(lineMaterial);
+        }
     }
 
 

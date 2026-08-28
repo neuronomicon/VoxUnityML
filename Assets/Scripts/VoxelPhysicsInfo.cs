@@ -312,7 +312,7 @@ public class VoxelPhysicsInfo : MonoBehaviour
     // =========================================================
     // 빌드 버전(실행 파일) 화면에 대시보드를 그리는 인게임 UI 함수
     // =========================================================
-
+/*
     private bool showDashboardInGame = false;
 
     // 🌟 [최적화 1] 매 프레임 생성되지 않도록 변수를 밖으로 뺌
@@ -378,7 +378,7 @@ public class VoxelPhysicsInfo : MonoBehaviour
         GUI.Box(new Rect(10, 10, 300, 320), "\n" + cachedDashboardText, boxStyle);
         GUI.Label(new Rect(20, 15, 280, 25), "🤖 로봇 물리 실시간 대시보드", titleStyle);
     }
-
+*/
 
 
 }
