@@ -51,6 +51,9 @@ public class VoxelMouseInteractor : MonoBehaviour
     private VoxelPhysicsInfo selectedRobotInfo;
     private int selectedVoxelIdx = -1;
 
+    private Material indicatorMaterial;
+    private VoxelPhysicsInfo[] allRobots;
+
     void Start()
     {
         pickIndicator = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
@@ -61,12 +64,30 @@ public class VoxelMouseInteractor : MonoBehaviour
         pickIndicator.transform.localScale = new Vector3(0.03f, 0.7f, 0.01f);
 
         Renderer r = pickIndicator.GetComponent<Renderer>();
+        
+        /*
         if (r != null && r.material != null) {
             // 눈에 확 띄는 밝은 노란색/빨간색 계열로 변경
             r.material.color = new Color(1f, 0.2f, 0.2f); 
         }
+        */        
+        if (r != null)
+        {
+            // .material 은 접근할 때마다 사본을 만들므로 한 번만 받아 보관한다.
+            indicatorMaterial = r.material;
+            indicatorMaterial.color = new Color(1f, 0.2f, 0.2f);
+        }
 
         pickIndicator.SetActive(false);
+
+
+        allRobots = FindObjectsByType<VoxelPhysicsInfo>(FindObjectsSortMode.None);
+    }
+
+    void OnDestroy()
+    {
+        if (indicatorMaterial != null) Destroy(indicatorMaterial);
+        if (pickIndicator != null) Destroy(pickIndicator);
     }
 
     void Update()
@@ -130,10 +151,14 @@ public class VoxelMouseInteractor : MonoBehaviour
         VoxelPhysicsInfo bestRobot = null;
         int bestVoxelIdx = -1;
 
-        VoxelPhysicsInfo[] allRobots = FindObjectsByType<VoxelPhysicsInfo>(FindObjectsSortMode.None);
+        //VoxelPhysicsInfo[] allRobots = FindObjectsByType<VoxelPhysicsInfo>(FindObjectsSortMode.None);
 
+        if (allRobots == null) return;
+        
         foreach (var robotInfo in allRobots)
         {
+            if (robotInfo == null) continue;
+
             if (robotInfo.RaycastVoxel(ray, pickRadius, out float hitDist, out int hitIdx, out Vector3 hitPos))
             {
                 if (hitDist < closestOverallDistance)

@@ -179,8 +179,9 @@ public class VoxelPhysicsManager : MonoBehaviour
     }
 
 
-    // 1. 클래스 상단 변수 선언부에 길이가 1인 더미 배열을 하나 추가합니다.
-    //private VoxelForceData[] emptyDragsBuffer = new VoxelForceData[1];
+    
+    // 1. 클래스 상단에 재사용할 임시 버퍼 선언
+    private VoxelForceData[] tempDragsBuffer = new VoxelForceData[10];  // C++ 의 MAX_INTERACTION
 
     // 🌟 4. VoxelRLManager에서 모든 훈련장을 돌며 일제히 호출하는 핵심 동기화 함수
     public void SyncPhysicsWithCpp()
@@ -191,10 +192,29 @@ public class VoxelPhysicsManager : MonoBehaviour
         foreach (var robot in localRobots)
         {
             int rIdx = robot.robotIndex;
-
-            //Debug.Log($"[PhysManager] At SyncPhysicsWithCpp(): call Send_Interactive_Force_Commands()...");
             
+           
         unsafe{
+
+            // [1] 마우스 드래그 조종 힘 C++로 전송 (해당 로봇의 명령만 필터링)
+            int dragCount = 0;
+            for (int c = 0; c < dragCommands.Count && dragCount < tempDragsBuffer.Length; c++)
+            {
+                if (dragCommands[c].targetRobotIdx == rIdx) tempDragsBuffer[dragCount++] = dragCommands[c];
+            }
+
+            if (dragCount > 0)
+            {
+                fixed (VoxelForceData* pDrags = tempDragsBuffer) {
+                    Send_Interactive_Force_Commands(rIdx, pDrags, dragCount);
+                }
+            } 
+            else 
+            {
+                Send_Interactive_Force_Commands(rIdx, null, 0);
+            }
+
+        /*
             // [1] 마우스 드래그 조종 힘 C++로 전송 (해당 로봇의 명령만 필터링)
             List<VoxelForceData> myDrags = dragCommands.FindAll(c => c.targetRobotIdx == rIdx);
             if (myDrags.Count > 0) 
@@ -215,6 +235,9 @@ public class VoxelPhysicsManager : MonoBehaviour
                 //Debug.Log($"[PhysManager] index:{rIdx}..null...0");
                 Send_Interactive_Force_Commands(rIdx, null, 0);
             }
+        */
+
+
 
             // [2] 유니티 씬의 콜라이더 정보 C++로 전송
             int activeCount = 0;

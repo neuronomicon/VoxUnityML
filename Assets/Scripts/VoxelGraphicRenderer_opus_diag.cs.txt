@@ -17,6 +17,7 @@
 using System;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.InputSystem;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using System.Runtime.InteropServices;
@@ -138,7 +139,43 @@ public class VoxelGraphicRenderer : MonoBehaviour
 
 
     private float renderTimer = 0f;
-    private float renderInterval = 1f / 30f; // 20 FPS로 렌더링 제한
+    private float renderInterval = 1f / 60f; // 20 FPS로 렌더링 제한
+
+    // ===== 누수 지점 이분탐색용 — 런타임에 F1/F2/F3 로 렌더 경로를 단계별로 차단 =====
+    private static bool s_skipDllCall = false;      // F1
+    private static bool s_skipMemCpy = false;       // F2
+    private static bool s_skipMeshUpload = false;   // F3
+    private static int s_lastToggleFrame = -1;
+
+    [Header("Measured Peak (Read Only)")]
+    [ReadOnly] public int peakTriCount = 0;
+    [ReadOnly] public int peakLineCount = 0;
+
+    private static void PollDebugToggles()
+    {
+        // 로봇마다 Update 가 돌므로 프레임당 1회만 처리
+        if (s_lastToggleFrame == Time.frameCount) return;
+        s_lastToggleFrame = Time.frameCount;
+
+        var kb = Keyboard.current;
+        if (kb == null) return;
+
+        if (kb.f1Key.wasPressedThisFrame)
+        {
+            s_skipDllCall = !s_skipDllCall;
+            Debug.Log($"[LeakDbg] F1 skipDllCall = {s_skipDllCall}");
+        }
+        if (kb.f2Key.wasPressedThisFrame)
+        {
+            s_skipMemCpy = !s_skipMemCpy;
+            Debug.Log($"[LeakDbg] F2 skipMemCpy = {s_skipMemCpy}");
+        }
+        if (kb.f3Key.wasPressedThisFrame)
+        {
+            s_skipMeshUpload = !s_skipMeshUpload;
+            Debug.Log($"[LeakDbg] F3 skipMeshUpload = {s_skipMeshUpload}");
+        }
+    }
 
     unsafe void Update()
     {
@@ -146,19 +183,26 @@ public class VoxelGraphicRenderer : MonoBehaviour
 
         
         // 🌟 렌더링 주기 제한 (GPU 버퍼 적체 방지)
+        //renderTimer += Time.deltaTime;
         renderTimer += Time.unscaledDeltaTime;
         if (renderTimer < renderInterval) return;
         renderTimer = 0f;
 
 
-        IntPtr triPtr, linePtr;
-        int triCount, lineCount;
+        IntPtr triPtr = IntPtr.Zero, linePtr = IntPtr.Zero;
+        int triCount = 0, lineCount = 0;
 
-        Fill_Voxel_Triangle_and_Line( robotIndex, out triPtr, out triCount, out linePtr, out lineCount);
+        PollDebugToggles();
 
-        MeshUpdateFlags flags = MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices 
-                                //| MeshUpdateFlags.DontNotifyMeshUsers; 
-                                ;
+        if (!s_skipDllCall)
+            Fill_Voxel_Triangle_and_Line( robotIndex, out triPtr, out triCount, out linePtr, out lineCount);
+
+        if (triCount > peakTriCount)   peakTriCount = triCount;
+        if (lineCount > peakLineCount) peakLineCount = lineCount;
+
+        MeshUpdateFlags flags = MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices
+                                //| MeshUpdateFlags.DontNotifyMeshUsers
+                                ; 
 
         //MeshUpdateFlags flags = MeshUpdateFlags.Default;
 
@@ -169,7 +213,8 @@ public class VoxelGraphicRenderer : MonoBehaviour
         {
             // 🌟 [최종 해결책] 꼼수 포장(Allocator.None)을 버리고, 
             // C++ 포인터의 데이터를 유니티의 안전한 영구 배열로 초고속 복사(MemCpy)합니다!
-            UnsafeUtility.MemCpy(persistentTriangles.GetUnsafePtr(), (void*)triPtr, (long)triCount * sizeof(VtxDxAll));
+            if (!s_skipMemCpy)
+                UnsafeUtility.MemCpy(persistentTriangles.GetUnsafePtr(), (void*)triPtr, (long)triCount * sizeof(VtxDxAll));
 
             // 🌟 [추가된 핵심 해결책] 전체 배열(64MB)을 통째로 넘기지 않고, 실제 존재하는 정점 개수만큼만 잘라서(Slice) 전달!
             // 이렇게 하면 유니티 그래픽스 엔진이 쓸데없는 64MB짜리 거대 임시 버퍼를 만들지 않습니다.
@@ -180,8 +225,11 @@ public class VoxelGraphicRenderer : MonoBehaviour
             // 10만 개짜리 쓰레기 메모리 복사를 시도하지 않아 누수가 완벽히 멈춥니다.
             //NativeSlice<VtxDxAll> triSlice = new NativeSlice<VtxDxAll>(persistentTriangles, 0, triCount);
 
-            mesh.SetVertexBufferData(persistentTriangles, 0, 0, triCount, 0, flags);
-            mesh.SetSubMesh(0, new SubMeshDescriptor(0, triCount, MeshTopology.Triangles), flags);
+            if (!s_skipMeshUpload)
+            {
+                mesh.SetVertexBufferData(persistentTriangles, 0, 0, triCount, 0, flags);
+                mesh.SetSubMesh(0, new SubMeshDescriptor(0, triCount, MeshTopology.Triangles), flags);
+            }
         }
         else if (triCount > maxVertexCapacity)
         {
@@ -189,7 +237,8 @@ public class VoxelGraphicRenderer : MonoBehaviour
         }
         else 
         {
-            mesh.SetSubMesh(0, new SubMeshDescriptor(0, 0, MeshTopology.Triangles), flags);
+            if (!s_skipMeshUpload)
+                mesh.SetSubMesh(0, new SubMeshDescriptor(0, 0, MeshTopology.Triangles), flags);
         }
 
         // ==============================================================
@@ -198,17 +247,14 @@ public class VoxelGraphicRenderer : MonoBehaviour
         if (linePtr != IntPtr.Zero && lineCount > 0 && lineCount <= maxLineVertexCapacity)
         {
             // 🌟 라인 데이터도 동일하게 안전한 영구 배열로 복사합니다.
-            UnsafeUtility.MemCpy(persistentLines.GetUnsafePtr(), (void*)linePtr, (long)lineCount * sizeof(VtxDxAll));
+            if (!s_skipMemCpy)
+                UnsafeUtility.MemCpy(persistentLines.GetUnsafePtr(), (void*)linePtr, (long)lineCount * sizeof(VtxDxAll));
 
-            // 🌟 [추가된 핵심 해결책] 라인 데이터도 실제 개수만큼만 슬라이스 처리
-            //NativeArray<VtxDxAll> lineSlice = persistentLines.GetSubArray(0, lineCount);
-
-            // 🌟 라인도 마찬가지로 NativeSlice 적용
-            //NativeSlice<VtxDxAll> lineSlice = new NativeSlice<VtxDxAll>(persistentLines, 0, lineCount);
-            
-
-            lineMesh.SetVertexBufferData(persistentLines, 0, 0, lineCount, 0, flags);
-            lineMesh.SetSubMesh(0, new SubMeshDescriptor(0, lineCount, MeshTopology.Lines), flags);
+            if (!s_skipMeshUpload)
+            {
+                lineMesh.SetVertexBufferData(persistentLines, 0, 0, lineCount, 0, flags);
+                lineMesh.SetSubMesh(0, new SubMeshDescriptor(0, lineCount, MeshTopology.Lines), flags);
+            }
         }
         else if (lineCount > maxLineVertexCapacity)
         {
@@ -216,7 +262,8 @@ public class VoxelGraphicRenderer : MonoBehaviour
         }
         else 
         {
-            lineMesh.SetSubMesh(0, new SubMeshDescriptor(0, 0, MeshTopology.Lines), flags);
+            if (!s_skipMeshUpload)
+                lineMesh.SetSubMesh(0, new SubMeshDescriptor(0, 0, MeshTopology.Lines), flags);
         }
 
     #endif
