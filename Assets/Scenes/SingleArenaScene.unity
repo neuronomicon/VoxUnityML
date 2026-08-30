@@ -505,7 +505,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 330585543}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 7ea0a01241427d045830317c272682ee, type: 3}
   m_Name: 
@@ -617,7 +617,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1eefcb671cf20594ba7a64576e19e404, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::VoxelEngineCore
-  is_ml_agent: 1
+  is_ml_agent: 0
   dllFolderPath: C:/Z_SHIM/PROG_MAJOR/PROJECT/NeuronomicoN_VS2022/ProjectDLL
   activeDllName: NeuronomicoN_DLL_x64_Release
   num_robots: 1
@@ -645,7 +645,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 400405848}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 088b6d69fe3304542bd155f857e3147f, type: 3}
   m_Name: 
@@ -1053,7 +1053,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 84270445628593848, guid: bad601d82110acd419eee2cded6cc373, type: 3}
       propertyPath: m_Enabled
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 1517512685467124385, guid: bad601d82110acd419eee2cded6cc373, type: 3}
       propertyPath: m_LocalPosition.x
@@ -1099,7 +1099,27 @@ PrefabInstance:
       propertyPath: m_Name
       value: TrainingAreaVox
       objectReference: {fileID: 0}
+    - target: {fileID: 1766797784422977818, guid: bad601d82110acd419eee2cded6cc373, type: 3}
+      propertyPath: m_Enabled
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 3471352098137527720, guid: bad601d82110acd419eee2cded6cc373, type: 3}
+      propertyPath: m_Enabled
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 3599125169949134897, guid: bad601d82110acd419eee2cded6cc373, type: 3}
+      propertyPath: m_Enabled
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4043950849209280867, guid: bad601d82110acd419eee2cded6cc373, type: 3}
+      propertyPath: m_Enabled
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 4385851160690040342, guid: bad601d82110acd419eee2cded6cc373, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 5512741894296362548, guid: bad601d82110acd419eee2cded6cc373, type: 3}
       propertyPath: m_Enabled
       value: 1
       objectReference: {fileID: 0}
@@ -1109,7 +1129,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7280712602371766370, guid: bad601d82110acd419eee2cded6cc373, type: 3}
       propertyPath: selectedVoxFileName
-      value: Test_V33_M33_All_Motor.vox
+      value: maxFit_V516_M142.vox
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

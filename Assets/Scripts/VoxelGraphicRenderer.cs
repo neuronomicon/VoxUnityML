@@ -142,6 +142,7 @@ public class VoxelGraphicRenderer : MonoBehaviour
 
     unsafe void Update()
     {
+        
     #if !UNITY_SERVER
 
         
@@ -156,9 +157,9 @@ public class VoxelGraphicRenderer : MonoBehaviour
 
         Fill_Voxel_Triangle_and_Line( robotIndex, out triPtr, out triCount, out linePtr, out lineCount);
 
-        MeshUpdateFlags flags = MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices 
+        //MeshUpdateFlags flags = MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices;
                                 //| MeshUpdateFlags.DontNotifyMeshUsers; 
-                                ;
+        MeshUpdateFlags flags = MeshUpdateFlags.DontValidateIndices;
 
         //MeshUpdateFlags flags = MeshUpdateFlags.Default;
 
