@@ -101,6 +101,12 @@ public class VoxelPhysicsInfo : MonoBehaviour
     // 🌟 1. VoxelEngineCore 참조 변수 추가
     private VoxelEngineCore engineCore;
 
+
+    // 🌟 1. 최대 복셀 개수만큼의 크기를 가지는 1차원 캐시 배열 (예: 10,000 복셀 지원)
+    // 두 복셀 번호를 조합하여 고유 해시 인덱스를 만듭니다.
+    private int[] linkIndexCacheArray; 
+    private const int MAX_VOXEL_SUPPORT = 1000;
+
     public void Fill_Robot_Param( int num_voxel, int num_motor )
     {
         numTotalVoxel = num_voxel;
@@ -108,6 +114,11 @@ public class VoxelPhysicsInfo : MonoBehaviour
 
         // 🌟 2. 시작 시 씬에 있는 VoxelEngineCore를 찾아 연결합니다.
         engineCore = FindAnyObjectByType<VoxelEngineCore>();
+
+
+        // 🌟 최초 1회만 캐시 배열 생성 (가비지 0)
+        linkIndexCacheArray = new int[MAX_VOXEL_SUPPORT * 2]; // 안전 마진
+        for(int i = 0; i < linkIndexCacheArray.Length; i++) linkIndexCacheArray[i] = -1;
     }
 
 
@@ -140,23 +151,7 @@ public class VoxelPhysicsInfo : MonoBehaviour
     // [추가] 매 프레임 데이터를 딕셔너리에 담아 복셀-->링크 O(1) 검색을 가능케 하는 내부 함수
     private unsafe void BuildLinkLookupMap()
     {
-    /*    if (lastLinkCount > 0 && lastLinkStatePtr != IntPtr.Zero)
-        {
-            linkStressMap.Clear();
-            LinkRealTimeState* links = (LinkRealTimeState*)lastLinkStatePtr;
-
-            for (int i = 0; i < lastLinkCount; i++)
-            {
-                int v1 = links[i].voxelIndex1;
-                int v2 = links[i].voxelIndex2;
-                float stress = links[i].stress;
-
-                // 양방향 모두 캐싱 (순서에 상관없이 검색할 수 있도록)
-                linkStressMap[(v1, v2)] = stress;
-                linkStressMap[(v2, v1)] = stress;
-            }
-        }
-    */
+  /*  
         // 🌟 핵심 최적화: 링크 개수가 변했을 때(최초 로딩 또는 링크 파손 시) 딱 한 번만 딕셔너리를 만듭니다!
         if (lastLinkCount > 0 && lastLinkStatePtr != IntPtr.Zero && lastLinkCount != cachedLinkCount)
         {
@@ -174,7 +169,69 @@ public class VoxelPhysicsInfo : MonoBehaviour
             }
             cachedLinkCount = lastLinkCount; // 캐싱 완료 기록
         }
+*/
+        if (lastLinkCount > 0 && lastLinkStatePtr != IntPtr.Zero && lastLinkCount != cachedLinkCount)
+        {
+            // 배열 전체를 -1로 초기화 (Array.Clear 보다 빠름)
+            for(int i = 0; i < linkIndexCacheArray.Length; i++) linkIndexCacheArray[i] = -1;
+
+            LinkRealTimeState* links = (LinkRealTimeState*)lastLinkStatePtr;
+
+            for (int i = 0; i < lastLinkCount; i++)
+            {
+                int v1 = links[i].voxelIndex1;
+                int v2 = links[i].voxelIndex2;
+
+                // 🌟 해시 충돌이 없는 단순 덧셈/비트 연산으로 1D 배열 인덱스 생성
+                // (어차피 쌍방향이므로 정렬해서 캐싱)
+                int minV = Mathf.Min(v1, v2);
+                int maxV = Mathf.Max(v1, v2);
+                int hashIdx = (minV * 73856093) ^ (maxV * 19349663); // 간단한 해싱
+                hashIdx = Mathf.Abs(hashIdx) % linkIndexCacheArray.Length;
+
+                linkIndexCacheArray[hashIdx] = i; // i번째 데이터임을 저장
+            }
+            cachedLinkCount = lastLinkCount;
+        }
     }
+
+
+    // =========================================================
+    // [추가] 특정 두 복셀의 인덱스를 주었을 때 그 사이 링크의 물리량(Stress) 꺼내기
+    // =========================================================
+    public unsafe float GetLinkStress(int voxelIdxA, int voxelIdxB)
+    {
+        // Voxel A와 Voxel B의 연결을 확인 (방향 무관하게 찾아짐)
+        //if (linkStressMap.TryGetValue((voxelIdxA, voxelIdxB), out float stressVal)) return stressVal;
+
+  /*      // 🌟 요청받은 복셀 쌍이 캐시(배열 인덱스)에 있는지 확인
+        if (lastLinkStatePtr != IntPtr.Zero && linkIndexCache.TryGetValue((voxelIdxA, voxelIdxB), out int arrayIndex))
+        {
+            // C++의 메모리 포인터에서 직접 실시간 응력(Stress) 값만 읽어서 즉시 반환! (매 프레임 딕셔너리 연산 0)
+            return ((LinkRealTimeState*)lastLinkStatePtr)[arrayIndex].stress;
+        }        
+        // 두 복셀 사이에 링크가 없으면 0 반환
+        return 0f;
+*/
+
+        if (lastLinkStatePtr == IntPtr.Zero || linkIndexCacheArray == null) return 0f;
+
+        int minV = Mathf.Min(voxelIdxA, voxelIdxB);
+        int maxV = Mathf.Max(voxelIdxA, voxelIdxB);
+        int hashIdx = (minV * 73856093) ^ (maxV * 19349663);
+        hashIdx = Mathf.Abs(hashIdx) % linkIndexCacheArray.Length;
+
+        int arrayIndex = linkIndexCacheArray[hashIdx];
+
+        if (arrayIndex != -1 && arrayIndex < lastLinkCount)
+        {
+            return ((LinkRealTimeState*)lastLinkStatePtr)[arrayIndex].stress;
+        }
+        
+        return 0f;
+
+    }
+
 
     private unsafe void UpdateEditorInspector()
     {
@@ -207,28 +264,7 @@ public class VoxelPhysicsInfo : MonoBehaviour
         }
     }
 
-
-// 주의: 기존 Update() 안에 있던 MonitorVoxelState() 호출은 삭제하거나 주석 처리하세요.
-// 이제 관측은 에이전트가 필요할 때만 딱 한 번 강제로 수행합니다.
-
-    // =========================================================
-    // [추가] 특정 두 복셀의 인덱스를 주었을 때 그 사이 링크의 물리량(Stress) 꺼내기
-    // =========================================================
-    public unsafe float GetLinkStress(int voxelIdxA, int voxelIdxB)
-    {
-        // Voxel A와 Voxel B의 연결을 확인 (방향 무관하게 찾아짐)
-        //if (linkStressMap.TryGetValue((voxelIdxA, voxelIdxB), out float stressVal)) return stressVal;
-
-        // 🌟 요청받은 복셀 쌍이 캐시(배열 인덱스)에 있는지 확인
-        if (lastLinkStatePtr != IntPtr.Zero && linkIndexCache.TryGetValue((voxelIdxA, voxelIdxB), out int arrayIndex))
-        {
-            // C++의 메모리 포인터에서 직접 실시간 응력(Stress) 값만 읽어서 즉시 반환! (매 프레임 딕셔너리 연산 0)
-            return ((LinkRealTimeState*)lastLinkStatePtr)[arrayIndex].stress;
-        }
-        
-        // 두 복셀 사이에 링크가 없으면 0 반환
-        return 0f;
-    }
+    
 
     // =========================================================
     // 🌟 특정 인덱스의 실시간 좌표 꺼내기 (이중 스왑 제거)

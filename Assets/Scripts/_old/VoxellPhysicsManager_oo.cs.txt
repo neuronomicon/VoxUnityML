@@ -107,8 +107,6 @@ public class VoxelPhysicsManager : MonoBehaviour
     private Dictionary<int, Rigidbody> rbDict = new Dictionary<int, Rigidbody>();
     private UnityColliderInfo[] sendCollidersBuffer;
     private UnityReactionForce[] receiveForcesBuffer;
-    
-    private VoxelForceData[] tempDragsBuffer;
 
     // 여러 로봇의 명령을 섞어 담아둔 뒤 전송 시점에 필터링하여 분배합니다.
     private List<VoxelForceData> dragCommands = new List<VoxelForceData>();
@@ -116,13 +114,6 @@ public class VoxelPhysicsManager : MonoBehaviour
 
     // 🌟 1. VoxelEngineCore 참조 변수 추가 (is_ml_agent=false 일때 FixedUpdate() 실행 하기 위해)
     private VoxelEngineCore engineCore;
-
-
-
-    private GCHandle dragsHandle, collidersHandle, forcesHandle;
-    private IntPtr pDragsPtr, pCollidersPtr, pForcesPtr;
-
-
     
     // 🌟 [변경] Awake() 삭제 후 InitializeArea()로 교체
     // 이제 혼자 깨어나지 않고, VoxelEngineCore가 순서대로 호출해 줍니다.
@@ -149,20 +140,8 @@ public class VoxelPhysicsManager : MonoBehaviour
                 agent.robotIdx = assignedIndex;
         }
 
-        tempDragsBuffer = new VoxelForceData[10];
         sendCollidersBuffer = new UnityColliderInfo[10];
-        receiveForcesBuffer = new UnityReactionForce[200];
-
-        // GC가 이 배열들을 절대 옮기지 못하게 영구 고정!
-        dragsHandle = GCHandle.Alloc(tempDragsBuffer, GCHandleType.Pinned);
-        collidersHandle = GCHandle.Alloc(sendCollidersBuffer, GCHandleType.Pinned);
-        forcesHandle = GCHandle.Alloc(receiveForcesBuffer, GCHandleType.Pinned);
-
-        pDragsPtr = dragsHandle.AddrOfPinnedObject();
-        pCollidersPtr = collidersHandle.AddrOfPinnedObject();
-        pForcesPtr = forcesHandle.AddrOfPinnedObject();
-
-
+        receiveForcesBuffer = new UnityReactionForce[200]; 
 
         foreach (var col in interactiveObjects)
         {
@@ -173,14 +152,6 @@ public class VoxelPhysicsManager : MonoBehaviour
         }
 
         engineCore = FindAnyObjectByType<VoxelEngineCore>();
-    }
-
-
-    void OnDestroy()
-    {
-        if (dragsHandle.IsAllocated) dragsHandle.Free();
-        if (collidersHandle.IsAllocated) collidersHandle.Free();
-        if (forcesHandle.IsAllocated) forcesHandle.Free();
     }
 
 
@@ -208,21 +179,23 @@ public class VoxelPhysicsManager : MonoBehaviour
     }
 
 
+    
+    // 1. 클래스 상단에 재사용할 임시 버퍼 선언
+    private VoxelForceData[] tempDragsBuffer = new VoxelForceData[10];  // C++ 의 MAX_INTERACTION
 
     // 🌟 4. VoxelRLManager에서 모든 훈련장을 돌며 일제히 호출하는 핵심 동기화 함수
     public void SyncPhysicsWithCpp()
     {
-        
+        //Debug.Log("VoxelPhysicsManager.SyncPhysicsWithCpp() 시작...");
+
         // 이 훈련장에 소속된 n대의 로봇 각각의 시점에서 시뮬레이션 데이터를 동기화합니다.
         foreach (var robot in localRobots)
         {
             int rIdx = robot.robotIndex;
             
            
-        unsafe
-        {
+        unsafe{
 
-        
             // [1] 마우스 드래그 조종 힘 C++로 전송 (해당 로봇의 명령만 필터링)
             int dragCount = 0;
             for (int c = 0; c < dragCommands.Count && dragCount < tempDragsBuffer.Length; c++)
@@ -232,14 +205,40 @@ public class VoxelPhysicsManager : MonoBehaviour
 
             if (dragCount > 0)
             {
-                Send_Interactive_Force_Commands(rIdx, (VoxelForceData*)pDragsPtr, dragCount);
+                fixed (VoxelForceData* pDrags = tempDragsBuffer) {
+                    Send_Interactive_Force_Commands(rIdx, pDrags, dragCount);
+                }
             } 
             else 
             {
                 Send_Interactive_Force_Commands(rIdx, null, 0);
             }
 
-        
+        /*
+            // [1] 마우스 드래그 조종 힘 C++로 전송 (해당 로봇의 명령만 필터링)
+            List<VoxelForceData> myDrags = dragCommands.FindAll(c => c.targetRobotIdx == rIdx);
+            if (myDrags.Count > 0) 
+            {
+                var arr = myDrags.ToArray();
+
+                int arlen = arr.Length;
+                //Debug.Log($"[PhysManager] index:{rIdx}, arrlen:{arlen}");
+
+                //Send_Interactive_Force_Commands(rIdx, arr, arr.Length);
+                // 🌟 배열을 메모리에 고정하고 포인터 획득
+                fixed (VoxelForceData* pDrags = arr) {
+                    Send_Interactive_Force_Commands(rIdx, pDrags, arr.Length);
+                }
+            } 
+            else 
+            {
+                //Debug.Log($"[PhysManager] index:{rIdx}..null...0");
+                Send_Interactive_Force_Commands(rIdx, null, 0);
+            }
+        */
+
+
+
             // [2] 유니티 씬의 콜라이더 정보 C++로 전송
             int activeCount = 0;
             for (int i = 0; i < interactiveObjects.Length; i++)
@@ -250,6 +249,11 @@ public class VoxelPhysicsManager : MonoBehaviour
                 if (rbDict.TryGetValue(col.gameObject.GetInstanceID(), out Rigidbody rb))
                 {
                     sendCollidersBuffer[activeCount].objectId = col.gameObject.GetInstanceID();
+
+                    // 🌟 핵심: '각 로봇 본체의 Transform'을 기준으로 유니티 월드 좌표를 로컬 상대 좌표로 변환!
+                    //Vector3 localPos = robot.transform.InverseTransformPoint(rb.position);
+                    //Vector3 pos = localPos / simScale;
+                    //sendCollidersBuffer[activeCount].pos = new Vector3(pos.x, pos.z, pos.y);
 
                     // 🟢 수정된 코드: InverseTransformPoint가 이미 1/10 스케일 축소를 수행하므로 그대로 사용!
                     Vector3 localPos = robot.transform.InverseTransformPoint(rb.position);
@@ -284,32 +288,45 @@ public class VoxelPhysicsManager : MonoBehaviour
                 }
             }
 
-            
+            //Set_Unity_Colliders(rIdx, sendCollidersBuffer, activeCount);
 
-            if (activeCount > 0) 
-            {                
-                // 🌟 2. fixed 블록 삭제! 미리 만들어둔 포인터(pCollidersPtr)를 직접 던집니다.
-                Set_Unity_Colliders(rIdx, (UnityColliderInfo*)pCollidersPtr, activeCount);
+            //Debug.Log($"[PhysManager] At SyncPhysicsWithCpp(): call Set_Unity_Colliders()...");
+
+            if (activeCount > 0) {
+                // C++과 동일하게 rIdx, 배열, 개수 순서로 정확히 전달
+                //Debug.Log($"rIdx:{rIdx}, {sendCollidersBuffer}, activeCount:{activeCount}");
+                //Set_Unity_Colliders(rIdx, sendCollidersBuffer, activeCount);
+                // 🌟 마샬링 과정 없이 배열의 시작 주소(포인터)를 C++로 직배송
+                fixed (UnityColliderInfo* pColliders = sendCollidersBuffer) {
+                    Set_Unity_Colliders(rIdx, pColliders, activeCount);
+                }
             } else {
-                // 콜라이더가 없을 때는 안전하게 null 전달                
+                // 콜라이더가 없을 때는 안전하게 null 전달
+                //Debug.Log($"rIdx:{rIdx}, null");
                 Set_Unity_Colliders(rIdx, null, 0);
             }
 
             //Debug.Log($"Set_Unity_Colliders() Done!");
 
 
-            
+            // [3] C++에서 계산된 반작용 타격 지점 및 힘 가져와서 유니티 Rigidbody에 누적
+            //int contactCount = Get_Reaction_Forces(rIdx, receiveForcesBuffer, receiveForcesBuffer.Length);
             // [3] 리액션 포스 수신
             int contactCount = 0;
-            
-            // 🌟 3. fixed 블록 삭제! 20,000개짜리 배열을 미리 만들어둔 포인터(pForcesPtr)로 즉시 읽습니다.
-            contactCount = Get_Reaction_Forces(rIdx, (UnityReactionForce*)pForcesPtr, receiveForcesBuffer.Length);
+            // 🌟 20,000개짜리 거대한 배열도 포인터로 넘기면 오버헤드 0, 크래시 위험 0
+            fixed (UnityReactionForce* pForces = receiveForcesBuffer) {
+                contactCount = Get_Reaction_Forces(rIdx, pForces, receiveForcesBuffer.Length);
+            }
 
             
             for (int i = 0; i < contactCount; i++)
             {
                 if (rbDict.TryGetValue(receiveForcesBuffer[i].objectId, out Rigidbody rb))
                 {
+                    // 🌟 핵심: C++에서 가져온 상대 좌표를 '로봇 본체의 Transform'을 기준으로 유니티 월드 좌표로 복구!
+                    //Vector3 localHitPos = receiveForcesBuffer[i].position * simScale;
+                    //Vector3 worldHitPos = robot.transform.TransformPoint(localHitPos);
+
                     // 🟢 수정된 코드: TransformPoint가 이미 10배 스케일 확대를 수행하므로 그대로 넣습니다!
                     Vector3 worldHitPos = robot.transform.TransformPoint(receiveForcesBuffer[i].position);
 
@@ -321,9 +338,7 @@ public class VoxelPhysicsManager : MonoBehaviour
                     rb.AddForceAtPosition(worldForce, worldHitPos, ForceMode.Force);
                 }
             }
-
-        } // unsafe 끝
-        
+        }
         } // 개별 훈련장 내부의 로봇 루프 종료
 
         

@@ -17,6 +17,128 @@
 using UnityEngine;
 using UnityEditor;
 
+
+[CustomEditor(typeof(VoxelPhysicsInfo))]
+public class VoxelPhysicsInfoEditor : Editor
+{
+    // 🌟 메모리 누수 방지용 타이머 및 캐싱 변수
+    private float lastRepaintTime = 0f;
+    private const float repaintInterval = 0.5f; // 0.5초마다 텍스트 갱신 (1초로 늘려도 무방함)
+
+    private string cachedRobotText = "";
+    private string cachedPhysicsText = "";
+    private string cachedLinkText = "";
+
+    // 유니티의 강제 무한 새로고침 방지
+    public override bool RequiresConstantRepaint()
+    {
+        return false; 
+    }
+
+    void OnEnable()
+    {
+        EditorApplication.update += EditorUpdate;
+    }
+
+    void OnDisable()
+    {
+        EditorApplication.update -= EditorUpdate;
+    }
+
+    // 백그라운드 타이머: 0.5초마다 Repaint 호출을 예약
+    private void EditorUpdate()
+    {
+        if (!Application.isPlaying) return;
+
+        if (Time.realtimeSinceStartup - lastRepaintTime >= repaintInterval)
+        {
+            lastRepaintTime = Time.realtimeSinceStartup;
+            Repaint(); 
+        }
+    }
+
+    public override void OnInspectorGUI()
+    {
+        // 1. 컴포넌트의 최신 데이터를 가져옵니다.
+        serializedObject.Update();
+
+        VoxelPhysicsInfo info = (VoxelPhysicsInfo)target;
+
+        GUIStyle boxStyle = new GUIStyle(EditorStyles.helpBox);
+        boxStyle.fontSize = 12;
+        boxStyle.alignment = TextAnchor.MiddleLeft;
+        boxStyle.richText = true;
+
+        // 🌟 0.5초에 한 번만 문자열(가비지) 생성
+        // Repaint가 타이머에 의해 불렸을 때만 새로운 문자열을 캐싱합니다.
+        if (Event.current.type == EventType.Repaint)
+        {
+            cachedRobotText = 
+                $"<b>[Robot Idx]</b>:{info.robotIndex}  " +
+                $"<b>[Num Voxel]</b>:{info.numTotalVoxel}  " +
+                $"<b>[Num Motor]</b>:{info.numMotorVoxel}\n" +
+                $"-------------------------------------------\n" +
+                $"<b>[C++ Step]</b>  {info.currentRobotStep:F3}\n" +
+                $"<b>[Last count]</b>: {info.lastVoxelCount} Voxels, {info.lastLinkCount} Links";
+
+            cachedPhysicsText = 
+                $"[pos]  {info.currentPos.ToString("F4")}\n" +
+                $"[vel]  {info.currentVel.ToString("F4")}\n" +
+                $"[avel]  {info.currentAngVel.ToString("F4")}\n" +
+                $"[exforce]  {info.currentAppliedForce.ToString("F4")}\n" +
+                $"[pressure]  {info.currentPressure.ToString("F4")}";
+
+            cachedLinkText = 
+                $"<b>[Connected Voxel A]</b>  {info.currentLinkVoxel1}\n" +
+                $"<b>[Connected Voxel B]</b>  {info.currentLinkVoxel2}\n" +
+                $"<b>[Stress]</b>  {info.currentLinkStress.ToString("F4")}";
+        }
+
+
+        // ---------------------------------------------------------
+        // [섹션 1] 로봇 상태 대시보드
+        // ---------------------------------------------------------
+        EditorGUILayout.Space();
+        EditorGUILayout.LabelField("Robot Status", EditorStyles.boldLabel);
+        
+        // 캐싱된 문자열 출력 (메모리 재할당 0)
+        EditorGUILayout.LabelField(cachedRobotText, boxStyle);
+
+        EditorGUILayout.Space();
+        EditorGUILayout.LabelField("", GUI.skin.horizontalSlider);
+
+        // ---------------------------------------------------------
+        // [섹션 2] 모니터링 결과
+        // ---------------------------------------------------------
+        EditorGUILayout.LabelField("Voxel Status", EditorStyles.boldLabel);
+        EditorGUILayout.PropertyField(serializedObject.FindProperty("inspectVoxelIndex"), new GUIContent("Voxel Index"));
+        EditorGUILayout.Space();
+        
+        // 캐싱된 문자열 출력
+        EditorGUILayout.LabelField(cachedPhysicsText, boxStyle);
+
+        EditorGUILayout.Space();
+        EditorGUILayout.LabelField("", GUI.skin.horizontalSlider);
+
+        // ---------------------------------------------------------
+        // [섹션 3] 개별 링크 물리 대시보드
+        // ---------------------------------------------------------
+        EditorGUILayout.LabelField("Link Status", EditorStyles.boldLabel);
+        EditorGUILayout.PropertyField(serializedObject.FindProperty("inspectLinkIndex"), new GUIContent("Link Index"));
+        EditorGUILayout.Space();
+        
+        // 캐싱된 문자열 출력
+        EditorGUILayout.LabelField(cachedLinkText, boxStyle);
+
+        // 2. 변경된 사항 저장
+        serializedObject.ApplyModifiedProperties();
+
+        // 🚨 3. 기존의 무한 Repaint 코드 삭제! (위의 타이머가 대신 처리함)
+        // if (Application.isPlaying) { Repaint(); } <--- 삭제됨
+    }
+}
+
+/*
 [CustomEditor(typeof(VoxelPhysicsInfo))]
 public class VoxelPhysicsInfoEditor : Editor
 {
@@ -109,3 +231,4 @@ public class VoxelPhysicsInfoEditor : Editor
         }
     }
 }
+*/

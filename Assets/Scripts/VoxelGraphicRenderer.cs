@@ -171,10 +171,9 @@ public class VoxelGraphicRenderer : MonoBehaviour
             // 🌟 [최종 해결책] 꼼수 포장(Allocator.None)을 버리고, 
             // C++ 포인터의 데이터를 유니티의 안전한 영구 배열로 초고속 복사(MemCpy)합니다!
             UnsafeUtility.MemCpy(persistentTriangles.GetUnsafePtr(), (void*)triPtr, (long)triCount * sizeof(VtxDxAll));
-
-            // 🌟 [추가된 핵심 해결책] 전체 배열(64MB)을 통째로 넘기지 않고, 실제 존재하는 정점 개수만큼만 잘라서(Slice) 전달!
-            // 이렇게 하면 유니티 그래픽스 엔진이 쓸데없는 64MB짜리 거대 임시 버퍼를 만들지 않습니다.
-            //NativeArray<VtxDxAll> triSlice = persistentTriangles.GetSubArray(0, triCount);
+            
+            // 🌟 64MB 배열을 통째로 넘기지 말고, 가비지(GC) 0인 슬라이스로 딱 잘라서 넘깁니다!
+            NativeSlice<VtxDxAll> triSlice = new NativeSlice<VtxDxAll>(persistentTriangles, 0, triCount);
 
             // 🌟 [최종 해결책] GetSubArray를 사용하되, 가비지를 만들지 않는 Slice 구조체를 만들어 넘깁니다!
             // 이렇게 하면 유니티는 딱 triCount 크기만큼의 임시 뷰(View)만 인식하고
@@ -201,12 +200,8 @@ public class VoxelGraphicRenderer : MonoBehaviour
             // 🌟 라인 데이터도 동일하게 안전한 영구 배열로 복사합니다.
             UnsafeUtility.MemCpy(persistentLines.GetUnsafePtr(), (void*)linePtr, (long)lineCount * sizeof(VtxDxAll));
 
-            // 🌟 [추가된 핵심 해결책] 라인 데이터도 실제 개수만큼만 슬라이스 처리
-            //NativeArray<VtxDxAll> lineSlice = persistentLines.GetSubArray(0, lineCount);
-
-            // 🌟 라인도 마찬가지로 NativeSlice 적용
-            //NativeSlice<VtxDxAll> lineSlice = new NativeSlice<VtxDxAll>(persistentLines, 0, lineCount);
-            
+            // 🌟 라인 데이터도 Slice로 자릅니다.
+            NativeSlice<VtxDxAll> lineSlice = new NativeSlice<VtxDxAll>(persistentLines, 0, lineCount);
 
             lineMesh.SetVertexBufferData(persistentLines, 0, 0, lineCount, 0, flags);
             lineMesh.SetSubMesh(0, new SubMeshDescriptor(0, lineCount, MeshTopology.Lines), flags);

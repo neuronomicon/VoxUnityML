@@ -192,21 +192,24 @@ public class VoxelEngineCore : MonoBehaviour
         // 🌟 수정할 로그 코드
         Debug.Log($"[VoxelEngineCore] Loaded DLL Name: {VoxelDllConfig.DLL_NAME}");
         Debug.Log($"[VoxelEngineCore] Num Robots: {num_robots}, Vox Parsing Mode: {voxelParseKind}");
-
-    #if UNITY_SERVER
-        Set_Headless_Mode(1);
-        Debug.Log("[VoxelEngineCore] Turn OFF C++ Pack_Render_Data()");
-    #else
-        Set_Headless_Mode(0);
-    #endif
-
+    
         Init_Voxel_Unity(num_robots, threadsArray, voxelParseKind, maxNumOscillators, is_ml_agent);
 
         Debug.Log("[VoxelEngineCore] DLL Engine Initialization Complete.");
 
-
-        // 시작할 때는 정지 상태로 세팅
         SetSimulationPlayState(0);
+
+    #if UNITY_SERVER
+        Set_Headless_Mode(1);
+        Debug.Log("[VoxelEngineCore] Headless: Turn OFF C++ Pack_Render_Data()");
+        ToggleSimulationButton();
+    #else
+        Set_Headless_Mode(0);
+        Debug.Log("[VoxelEngineCore] Graphics: Turn ON C++ Pack_Render_Data()");        
+    #endif
+
+    
+        
 
 
     // ==========================================================
