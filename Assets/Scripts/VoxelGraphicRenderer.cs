@@ -39,7 +39,7 @@ public class VoxelGraphicRenderer : MonoBehaviour
 {
     const string DLL_NAME = VoxelDllConfig.DLL_NAME;
 
-    [DllImport(DLL_NAME)]
+    [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
     public static extern void Fill_Voxel_Triangle_and_Line( int robotIdx,
                                                             out IntPtr triData, out int triCount, 
                                                             out IntPtr lineData, out int lineCount );
@@ -97,6 +97,10 @@ public class VoxelGraphicRenderer : MonoBehaviour
         transform.localScale = new Vector3(10f, 10f, 10f);
         Bounds hugeBounds = new Bounds(Vector3.zero, new Vector3(100000f, 100000f, 100000f));
 
+
+        MeshUpdateFlags flags = MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices 
+                                | MeshUpdateFlags.DontNotifyMeshUsers;
+
         // 삼각형 메쉬 설정
         mesh = new Mesh { bounds = hugeBounds };
         mesh.MarkDynamic();
@@ -106,7 +110,12 @@ public class VoxelGraphicRenderer : MonoBehaviour
         persistentIndices = new NativeArray<int>(maxVertexCapacity, Allocator.Persistent);
         for (int i = 0; i < maxVertexCapacity; i++) persistentIndices[i] = i;
         mesh.SetIndexBufferParams(maxVertexCapacity, IndexFormat.UInt32);
-        mesh.SetIndexBufferData(persistentIndices, 0, 0, maxVertexCapacity);
+        mesh.SetIndexBufferData(persistentIndices, 0, 0, maxVertexCapacity, flags);
+
+        // Start() 안, SetIndexBufferData 호출 직후:
+        mesh.subMeshCount = 1;
+        mesh.SetSubMesh(0, new SubMeshDescriptor(0, 0, MeshTopology.Triangles), flags );        
+
 
         // 라인 메쉬 설정
         lineMesh = new Mesh { bounds = hugeBounds };
@@ -116,7 +125,14 @@ public class VoxelGraphicRenderer : MonoBehaviour
         persistentLineIndices = new NativeArray<int>(maxLineVertexCapacity, Allocator.Persistent);
         for (int i = 0; i < maxLineVertexCapacity; i++) persistentLineIndices[i] = i;
         lineMesh.SetIndexBufferParams(maxLineVertexCapacity, IndexFormat.UInt32);
-        lineMesh.SetIndexBufferData(persistentLineIndices, 0, 0, maxLineVertexCapacity);
+        lineMesh.SetIndexBufferData(persistentLineIndices, 0, 0, maxLineVertexCapacity, flags);
+
+        // 라인 메시도:
+        lineMesh.subMeshCount = 1;
+        lineMesh.SetSubMesh(0, new SubMeshDescriptor(0, 0, MeshTopology.Lines), flags );
+        
+
+        
 
         lineMaterial = new Material(Shader.Find("Unlit/Color")) { color = Color.black };
 
@@ -143,6 +159,7 @@ public class VoxelGraphicRenderer : MonoBehaviour
     unsafe void Update()
     {
         
+        
     #if !UNITY_SERVER
 
         
@@ -157,9 +174,10 @@ public class VoxelGraphicRenderer : MonoBehaviour
 
         Fill_Voxel_Triangle_and_Line( robotIndex, out triPtr, out triCount, out linePtr, out lineCount);
 
-        //MeshUpdateFlags flags = MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices;
-                                //| MeshUpdateFlags.DontNotifyMeshUsers; 
-        MeshUpdateFlags flags = MeshUpdateFlags.DontValidateIndices;
+        MeshUpdateFlags flags = MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices 
+                                | MeshUpdateFlags.DontNotifyMeshUsers;
+
+        //MeshUpdateFlags flags = MeshUpdateFlags.DontValidateIndices;
 
         //MeshUpdateFlags flags = MeshUpdateFlags.Default;
 
@@ -173,7 +191,7 @@ public class VoxelGraphicRenderer : MonoBehaviour
             UnsafeUtility.MemCpy(persistentTriangles.GetUnsafePtr(), (void*)triPtr, (long)triCount * sizeof(VtxDxAll));
             
             // 🌟 64MB 배열을 통째로 넘기지 말고, 가비지(GC) 0인 슬라이스로 딱 잘라서 넘깁니다!
-            NativeSlice<VtxDxAll> triSlice = new NativeSlice<VtxDxAll>(persistentTriangles, 0, triCount);
+            //NativeSlice<VtxDxAll> triSlice = new NativeSlice<VtxDxAll>(persistentTriangles, 0, triCount);
 
             // 🌟 [최종 해결책] GetSubArray를 사용하되, 가비지를 만들지 않는 Slice 구조체를 만들어 넘깁니다!
             // 이렇게 하면 유니티는 딱 triCount 크기만큼의 임시 뷰(View)만 인식하고
@@ -201,7 +219,7 @@ public class VoxelGraphicRenderer : MonoBehaviour
             UnsafeUtility.MemCpy(persistentLines.GetUnsafePtr(), (void*)linePtr, (long)lineCount * sizeof(VtxDxAll));
 
             // 🌟 라인 데이터도 Slice로 자릅니다.
-            NativeSlice<VtxDxAll> lineSlice = new NativeSlice<VtxDxAll>(persistentLines, 0, lineCount);
+            //NativeSlice<VtxDxAll> lineSlice = new NativeSlice<VtxDxAll>(persistentLines, 0, lineCount);
 
             lineMesh.SetVertexBufferData(persistentLines, 0, 0, lineCount, 0, flags);
             lineMesh.SetSubMesh(0, new SubMeshDescriptor(0, lineCount, MeshTopology.Lines), flags);

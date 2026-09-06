@@ -14,6 +14,7 @@
  * ==============================================================================
  */
 
+using System;
 using System.IO;
 using UnityEngine;
 using System.Runtime.InteropServices;
@@ -32,21 +33,22 @@ public class VoxelEngineCore : MonoBehaviour
     // DLL 함수 임포트
     const string DLL_NAME = VoxelDllConfig.DLL_NAME;
 
-    [DllImport(DLL_NAME)]
-    public static extern void Init_Voxel_Unity(int nRobot, int[] nRobotThr, int VOXEL_PARSE_KIND, int MAX_NUM_OSC, bool IS_RL );
+    [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
+    //public static extern void Init_Voxel_Unity(int nRobot, int[] nRobotThr, int VOXEL_PARSE_KIND, int MAX_NUM_OSC, bool IS_RL );
+    public static extern void Init_Voxel_Unity(int nRobot, IntPtr nRobotThr, int VOXEL_PARSE_KIND, int MAX_NUM_OSC, int IS_RL );
     
-    [DllImport(DLL_NAME)]
+    [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
     public static extern void End_Voxel_Unity();
 
-    [DllImport(DLL_NAME)]
+    [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
     public static extern void SetSimulationPlayState(int is_Play);
 
     // 🌟 [추가] C++로 Headless 모드 여부를 전송하는 함수
-    [DllImport(DLL_NAME)]
+    [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
     private static extern void Set_Headless_Mode(int isHeadless);
 
     // C++ DLL에서 만든 파이프 연결 함수를 가져옵니다.
-    [DllImport(DLL_NAME)]
+    [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
     private static extern void ConnectConsoleOutput();
     
 
@@ -71,6 +73,10 @@ public class VoxelEngineCore : MonoBehaviour
 
     // [추가] 중복 해제 방지용 플래그
     private bool isDllCleanedUp = false;
+
+    // R2: C++이 스레드 배열 포인터를 보관해도 안전하도록 영구 고정
+    private GCHandle threadArrayHandle;
+    private int[] threadsArrayKeepAlive;
 
 
     // 🌟 [추가] 로봇 데이터를 전송할 빌더 스크립트 참조
@@ -186,7 +192,7 @@ public class VoxelEngineCore : MonoBehaviour
         
         //num_robots = robotBuilder != null ? robotBuilder.finalRobotCount : 1;
 
-        // 🌟 수정됨: VoxelRobotBuilder 스크립트에 정의된 리스트 데이터에 직접 접근하여 변환
+    /*    // 🌟 수정됨: VoxelRobotBuilder 스크립트에 정의된 리스트 데이터에 직접 접근하여 변환
         int[] threadsArray = (robotBuilder != null) ? robotBuilder.finalThreadArray : new int[] { 10 };
 
         // 🌟 수정할 로그 코드
@@ -194,19 +200,38 @@ public class VoxelEngineCore : MonoBehaviour
         Debug.Log($"[VoxelEngineCore] Num Robots: {num_robots}, Vox Parsing Mode: {voxelParseKind}");
     
         Init_Voxel_Unity(num_robots, threadsArray, voxelParseKind, maxNumOscillators, is_ml_agent);
+    */
 
-        Debug.Log("[VoxelEngineCore] DLL Engine Initialization Complete.");
 
+        threadsArrayKeepAlive = (robotBuilder != null) ? robotBuilder.finalThreadArray : new int[] { 10 };
+
+        // R2: 호출 반환 후에도 C++이 포인터를 계속 참조할 수 있으므로 영구 핀 고정
+        if (threadArrayHandle.IsAllocated) threadArrayHandle.Free();
+        threadArrayHandle = GCHandle.Alloc(threadsArrayKeepAlive, GCHandleType.Pinned);
+
+        Debug.Log($"[VoxelEngineCore] Loaded DLL Name: {VoxelDllConfig.DLL_NAME}");
+        Debug.Log($"[VoxelEngineCore] Num Robots: {num_robots}, Vox Parsing Mode: {voxelParseKind}");
+
+        // R10: C++ 워커 스레드가 시작되기 전에 headless 플래그부터 확정
         SetSimulationPlayState(0);
 
     #if UNITY_SERVER
         Set_Headless_Mode(1);
         Debug.Log("[VoxelEngineCore] Headless: Turn OFF C++ Pack_Render_Data()");
-        ToggleSimulationButton();
     #else
         Set_Headless_Mode(0);
-        Debug.Log("[VoxelEngineCore] Graphics: Turn ON C++ Pack_Render_Data()");        
+        Debug.Log("[VoxelEngineCore] Graphics: Turn ON C++ Pack_Render_Data()");
     #endif
+
+        // R7: bool → int (Win32 BOOL 4바이트 vs MSVC bool 1바이트 불일치 제거)
+        Init_Voxel_Unity(num_robots, threadArrayHandle.AddrOfPinnedObject(),
+                        voxelParseKind, maxNumOscillators, is_ml_agent ? 1 : 0);
+
+#if UNITY_SERVER
+    ToggleSimulationButton();   // 엔진 기동 후에 실행되어야 함
+#endif
+
+        Debug.Log("[VoxelEngineCore] DLL Engine Initialization Complete.");
 
     
         
@@ -231,13 +256,25 @@ public class VoxelEngineCore : MonoBehaviour
     // [추가] DLL 메모리를 안전하게 닫는 전용 함수
     private void CleanupDLL()
     {
-        if (!isDllCleanedUp)
+     /*   if (!isDllCleanedUp)
         {
             Debug.Log("[VoxelEngineCore] DLL thread termination & Freeing memory in progress...");
             
             // C++ 쪽으로 스레드 개수를 넘겨주어 루프 탈출 및 메모리 delete를 지시합니다.
             End_Voxel_Unity(); 
             
+            Debug.Log("[VoxelEngineCore] DLL safely terminated.");
+            isDllCleanedUp = true;
+        }
+*/
+        if (!isDllCleanedUp)
+        {                                // R12
+            Debug.Log("[VoxelEngineCore] DLL thread termination & Freeing memory in progress...");
+            End_Voxel_Unity();
+
+            // R2: C++이 포인터 사용을 끝낸 뒤에 핀 해제 (순서 중요)
+            if (threadArrayHandle.IsAllocated) threadArrayHandle.Free();
+
             Debug.Log("[VoxelEngineCore] DLL safely terminated.");
             isDllCleanedUp = true;
         }
@@ -267,6 +304,24 @@ public class VoxelEngineCore : MonoBehaviour
 
     void Start() // 만약 이미 Start()나 Awake()가 있다면 그 안의 맨 윗부분에 아래 코드를 추가하세요.
     {
+
+        // [임시 누수 테스트] Global Volume 비활성화
+        //var vol = FindAnyObjectByType<UnityEngine.Rendering.Volume>();
+        //if (vol != null)
+        //{
+        //    vol.gameObject.SetActive(false);
+        //    Debug.LogWarning("[TEST] Global Volume DISABLED for leak test");
+        //}
+
+        // Camera 의 UniversalAdditionalCameraData 에서 
+        // Anti-Aliasing 을 TAA → FXAA 또는 없음으로 변경
+        //var camData = Camera.main.GetComponent<UniversalAdditionalCameraData>();
+        //camData.antialiasing = AntialiasingMode.None; // TAA 제거
+
+        //Camera.main.enabled = false;
+        //Debug.LogWarning("[TEST] Camera DISABLED");
+
+
         // 1. 씬 전체에서 "GO/STOP" 이라는 이름을 가진 오브젝트를 찾습니다.
         GameObject textObj = GameObject.Find("GO/STOP");
         

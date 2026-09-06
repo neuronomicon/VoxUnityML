@@ -1124,8 +1124,16 @@ PrefabInstance:
       value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 7248990884235393285, guid: bad601d82110acd419eee2cded6cc373, type: 3}
+      propertyPath: threadCount
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 7248990884235393285, guid: bad601d82110acd419eee2cded6cc373, type: 3}
       propertyPath: selectedVoxFileName
       value: maxFit_V516_M142.vox
+      objectReference: {fileID: 0}
+    - target: {fileID: 7280712602371766370, guid: bad601d82110acd419eee2cded6cc373, type: 3}
+      propertyPath: threadCount
+      value: 6
       objectReference: {fileID: 0}
     - target: {fileID: 7280712602371766370, guid: bad601d82110acd419eee2cded6cc373, type: 3}
       propertyPath: selectedVoxFileName
