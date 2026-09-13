@@ -6,7 +6,7 @@
 
 > **Work in progress.** Released early to document prior research and for demonstration. APIs and training configurations are still moving.
 
-![screenshot][image1] 
+<img width="1791" height="1363" alt="vox_unity_ml" src="https://github.com/user-attachments/assets/97d50d79-39e2-46bf-b7b4-db26ffb6f342" />
 
 ---
 
