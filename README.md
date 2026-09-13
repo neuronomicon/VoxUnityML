@@ -1,7 +1,11 @@
 # VoxUnityML
 
+<<<<<<< HEAD
 ### **Parallel multi-soft-robot reinforcement learning in Unity, powered by Jon Hiller's Voxelyze
 3D voxel physics engine.**
+=======
+### **Parallel multi-soft-robot reinforcement learning in Unity, powered by Voxelyze 3D voxel physics engine.**
+>>>>>>> 02680e83f397020e457b68e817e9e43e73a71b88
 
 ![Unity](https://img.shields.io/badge/Unity-6-000000?logo=unity&logoColor=white)
 ![ML-Agents](https://img.shields.io/badge/ML--Agents-PPO-0088cc)
