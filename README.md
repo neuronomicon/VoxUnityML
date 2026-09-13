@@ -1,6 +1,6 @@
 # VoxUnityML
 
-**Parallel multi-soft-robot reinforcement learning in Unity, powered by a C++ Voxelyze core.**
+## **Parallel multi-soft-robot reinforcement learning in Unity, powered by a C++ Voxelyze core.**
 
 
 > **Work in progress.** Released early to document prior research and for demonstration. APIs and training configurations are still moving.
@@ -24,18 +24,6 @@ The result is a soft-robot RL testbed that scales with core count rather than wi
 - **Lock-free triple buffering** — rendering reads a completed snapshot while physics writes the next one; heavy simulation never stalls the frame.  
 - **Bi-directional PhysX coupling** — continuous two-way collision, force and torque exchange between Unity rigidbodies and Voxelyze soft bodies.  
 - **Direct thermal actuation** — the policy sets a target temperature per muscle voxel; a first-order actuator model (τ ≈ 50 ms) turns discontinuous commands into smooth deformation without a hand-designed gait generator.
-
-## At a glance
-
-|  |  |
-| :---- | :---- |
-| Physics rate | 1000 Hz (`dt = 0.001 s`) |
-| Decision rate | 50 Hz — 20 micro-steps per decision |
-| Episode length | 500 decisions \= 10 s |
-| Observation | 240 floats (33-voxel robot) |
-| Action | 33 continuous, one per muscle voxel |
-| Trainer | PPO, `γ = 0.995`, 512×3 MLP |
-| Scenes included | 1 / 4 / 16 training arenas |
 
 ---
 
