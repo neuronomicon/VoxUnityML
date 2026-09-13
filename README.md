@@ -1,165 +1,101 @@
-# VoxUnityML
+## [Voxelyze+Unity+ML-Agents] Parallel Multi-Soft-Robot RL Simulation Framework (ver 0.5)
 
-## **Parallel multi-soft-robot reinforcement learning in Unity, powered by a C++ Voxelyze core.**
+> **WORK IN PROGRESS (WIP)**
+> This project is currently under active development and research. 
+> The code is being disclosed in advance for the purpose of maintaining a record of prior research and for demonstration purposes only.
 
+<img width="1791" height="1363" alt="screenshot" src="https://github.com/user-attachments/assets/70b7bc57-b812-4900-8225-18621b9f1f2c" />
 
-> **Work in progress.** Released early to document prior research and for demonstration. APIs and training configurations are still moving.
+### Core Features
 
-<img width="1791" height="1363" alt="vox_unity_ml" src="https://github.com/user-attachments/assets/97d50d79-39e2-46bf-b7b4-db26ffb6f342" />
+*   **Core Physics Engine**: Integrates the high-performance C++ Voxelyze soft-body physics engine with Unity's environment and ML-Agents.
+*   **Extreme Multi-Threading**: Maximizes HEDT CPUs (e.g., AMD Threadripper) via OpenMP and Windows Thread Affinity (Processor Group pinning) to utilize 64+ cores perfectly.
+*   **Nested Parallel Optimization**: Eliminates thread fork-join overhead by utilizing a single persistent OpenMP parallel region with implicit barriers for micro/macro steps.
+*   **Zero-Allocation Data Bridge**: Transfers vertex and state data directly from C++ to Unity's GPU via `IntPtr` and the Burst Compiler, entirely bypassing Garbage Collection (Zero GC).
+*   **Lock-Free Triple Buffering**: Ensures smooth 60+ FPS rendering in Unity without being bottlenecked or blocked by heavy asynchronous physics computations.
+*   **In-Scene Massive Parallelism**: Safely isolates memory buffers in the DLL, allowing dozens of independent soft robots to train simultaneously and asynchronously within a single Unity scene.
+*   **Bi-directional Physics Interaction**: Supports two-way continuous collision, force, and torque exchange between Unity PhysX rigidbodies and Voxelyze soft-bodies.
+*   **CPG Motor Actuation**: Translates AI commands into Central Pattern Generator (CPG) parameters, ensuring smooth, continuous sine-wave locomotion and preventing physics explosion.
 
----
+### Quick User Manual
+https://neuronomicon.github.io/VoxUM.html
 
-## What it does
+## 1. Introduction
+This system was developed to seamlessly integrate the computationally intensive physical simulation of soft-body robots with Reinforcement Learning (RL) training. Because Unity's native physics engine (PhysX) has limitations in calculating soft-body dynamics, **Voxelyze**, a high-performance C++ voxel physics engine, was adopted as the core physical simulator. 
+This specification details the architecture of the zero-allocation data communication between the C++ DLL and Unity C#, the parallel physics computation utilizing multi-core processing, and the lock-step synchronization architecture required for stable integration with Unity ML-Agents.
 
-Unity's PhysX cannot simulate soft bodies, so this project runs **Voxelyze** — a C++ mass-spring voxel engine — as the physics core and bridges it into Unity ML-Agents. Dozens of independent soft robots train in parallel inside a single scene, each with isolated memory in the DLL, while Unity renders at 60+ FPS without ever blocking on physics.
-
-The result is a soft-robot RL testbed that scales with core count rather than with GPU budget.
-
-## Highlights
-
-- **C++ physics core** — Voxelyze mass-spring dynamics with RK4 integration, driven from Unity.  
-- **Nested OpenMP parallelism** — a persistent parallel region parallelises across robots (macro) and across voxels within a robot (micro), with no fork-join churn per step.  
-- **Processor-group thread pinning** — Windows affinity APIs keep 64+ core HEDT machines (AMD Threadripper class) fully utilised across processor groups.  
-- **Zero-GC data bridge** — vertex and state data cross from C++ to Unity as `IntPtr` and are consumed by the Burst compiler directly into mesh buffers. No managed allocation per frame.  
-- **Lock-free triple buffering** — rendering reads a completed snapshot while physics writes the next one; heavy simulation never stalls the frame.  
-- **Bi-directional PhysX coupling** — continuous two-way collision, force and torque exchange between Unity rigidbodies and Voxelyze soft bodies.  
-- **Direct thermal actuation** — the policy sets a target temperature per muscle voxel; a first-order actuator model (τ ≈ 50 ms) turns discontinuous commands into smooth deformation without a hand-designed gait generator.
-
----
-
-## Quick start
-
-\# 1\. Build the C++ DLL (Visual Studio, x64 Release) and copy it into the Unity project.
-
-\# 2\. Open SingleArenaScene in Unity 6\.
-
-\# 3\. Start the trainer, then press Play.
-
-mlagents-learn config/VoxBot33.yaml \--run-id=VoxBot\_01
-
-The console should report the wiring:
-
-\[VoxelEngineCore\] Total 2 robots indexed sequentially across 1 training areas.
-
-\[VoxelRLManager\] 1 robots, actionSize=33
-
-Full walkthrough → [**VoxUnityML: First Training Run**](https://neuronomicon.github.io/VoxUM.html)
+## 2. System Architecture Overview
+The entire system is modularized into three main layers, connected via high-performance pointer-based communication:
+*   **Physics Layer (C++ DLL):** Handles the actual physics calculations (mass-spring-damper models, RK4 integrators), updates the geometric shape of the robots, and manages multi-threading.
+*   **Bridge & Render Layer (C++ / C#):** Safely transfers calculated vertex and physics state data to Unity using a triple-buffering mechanism and performs real-time rendering.
+*   **RL & Interaction Layer (Unity C#):** Collects the ML-Agents' observations/actions and user interactions, passing them to the C++ command queue to control the simulation stepping.
 
 ---
 
-## Architecture
+## 3. C++ DLL (Voxelyze) Core Implementation
+To encapsulate responsibilities, the C++ codebase is refactored into modular files.
 
-Three layers connected by pointers rather than by serialisation:
-
-| Layer | Language | Responsibility |
-| :---- | :---- | :---- |
-| Physics | C++ DLL | Mass-spring integration, collision, multi-threading, per-robot memory isolation |
-| Bridge & render | C++ / C\# | Triple-buffered state and vertex transfer, Burst mesh upload |
-| RL & interaction | Unity C\# | Observation assembly, action dispatch, lock-step stepping, user input |
-
-### The control loop
-
-Physics runs on a background C++ thread, so Unity cannot step the Academy on a fixed schedule. `VoxelRLManager` disables automatic stepping and drives the cycle by hand, waiting on a ready flag before releasing the next batch of actions.
-
-flowchart LR
-
-    A\["Unity Update()\<br/\>polls ready flag"\] \--\> B\["EnvironmentStep()\<br/\>observe → decide"\]
-
-    B \--\> C\["Action buffer\<br/\>N agents, lock-step"\]
-
-    C \--\> D\["C++ worker thread\<br/\>20 × 1 ms steps"\]
-
-    D \--\>|"advances 20 ms, raises ready flag"| A
-
-> **Never attach a `Decision Requester`.** It would request decisions on Unity's own schedule, independent of the worker thread, and agents would submit actions while physics is mid-flight. The manager calls `RequestDecision()` for every agent itself.
-
-Because stepping is driven from `Update()` rather than `FixedUpdate()`, raising `time_scale` does **not** speed up training — `target_frame_rate: -1` is the knob that matters.
+### 3.1. Modular C++ System Structure
+*   **Deferred Initialization and Build Logic:**
+    *   Caches robot configuration values and voxel arrays sent from the Unity editor into global static arrays inside the C++ engine.
+    *   This deferred initialization pattern prevents overhead and file path errors that would occur if files were loaded via traditional I/O operations.
+*   **Main Loop and Thread Control Logic:**
+    *   Manages the lifecycle of the simulation.
+    *   Employs Windows API to maximize CPU utilization by distributing and pinning threads across process groups.
+    *   Utilizes nested OpenMP settings to handle parallelization at both the macro-level (multiple robots) and micro-level (voxels within a robot).
+*   **Physics Data and External Forces Logic:**
+    *   Encapsulates the logic for extracting physical state information required for reinforcement learning and applying external interactive forces (e.g., mouse drag, physical collisions) to voxels.
+*   **Rendering Data Processing Logic:**
+    *   Processes 3D vertices and normal vectors to match Unity's GPU rendering pipeline.
 
 ---
 
-## Observation and action space
+## 4. Inter-Process Synchronization and Rendering Bridge
+To prevent race conditions and frame stuttering between the asynchronous C++ physics threads and Unity's main thread, advanced memory communication techniques were implemented.
 
-Body geometry and task objective are separate ScriptableObjects, so one robot body can be reused across many tasks. Observation and action sizes are **derived** from the body profile and pushed into `BehaviorParameters` — they are never typed in by hand.
+### 4.1. Triple Buffering and Mutex Locks
+*   Upon completing a physics calculation, the updated vertex and physics state data are written to an internal C++ Write Buffer.
+*   Once writing is complete, the engine briefly locks a mutex and swaps the pointers of the Write Buffer and the Ready Buffer.
+*   Unity accesses only the Read Buffer via pointers, ensuring that the 60 FPS rendering cycle is maintained without waiting for heavy physics computations.
 
-**Observation** — body-local frame, measured relative to the centre of mass:
+### 4.2. Zero-Allocation C# Rendering
+*   The structured data generated by C++ is passed to Unity as an `IntPtr`.
+*   The Unity C# side utilizes `unsafe` blocks and the C# Job System (Burst Compiler) to directly copy this pointer data into the Unity Mesh buffer without allocation, completely eliminating Garbage Collector (GC) overhead.
+*   Coordinate system discrepancies (Voxelyze is Z-up; Unity is Y-up) are handled during the data mapping process.
 
-| Index | Contents | Count |
-| :---- | :---- | :---- |
-| 0–2 | Target direction (unit x, z) and normalised distance | 3 |
-| 3–5 | Centre-of-mass velocity | 3 |
-| 6–8 | Mean angular velocity | 3 |
-| 9–206 | Per voxel: position and velocity relative to CoM | 6 × 33 |
-| 207–239 | Previous action | 33 |
-
-The previous-action block is not optional. Actuators carry a first-order lag, so the next state depends on commands issued several steps earlier; feeding the last action back restores the Markov property the policy needs.
-
-**Action** — one continuous value per muscle voxel:
-
-a ∈ \[-1, \+1\]  →  target temperature \= a × 12
-
-                 contract ←──────────→ expand
-
-current \+= (target \- current) × 0.02   per 1 ms micro-step   (τ ≈ 49.5 ms)
-
-The lag is applied inside the micro-step loop, so actuator dynamics stay fixed in wall-clock terms regardless of the decision rate.
+### 4.3. Command Queue (Mailbox) Interaction Pattern
+*   User inputs (mouse) or Unity rigid-body collision data are stacked in a command queue array in C++.
+*   Just before the C++ loop executes the next physical integration step, it fetches commands from this "mailbox" and accumulates the external forces onto the voxels, advancing the simulation safely.
 
 ---
 
-## Key files
+## 5. Multi-Agent Reinforcement Learning (ML-Agents) Integration
+The most critical implementation is the transition to a **"Unity-driven Lock-step Ping-Pong Model"** for reinforcement learning.
 
-cpp/
+### 5.1. Shifting Simulation Control (FixedUpdate Synchronization)
+*   Running the C++ engine as an infinite asynchronous thread during RL training caused severe desynchronization between physics time and the agent's decision steps, leading to performance degradation.
+*   To resolve this, the infinite loop thread is stopped, and the C++ physics computation function is forcibly called from Unity's `FixedUpdate()`.
+*   The C++ engine only computes the specified micro-steps upon Unity's request and returns control, ensuring perfect 1:1 synchronization.
 
-  Unity\_Voxel\_RL\_DLL.cpp            RL entry points, reset, lock-step handoff
+### 5.2. In-Scene Parallelization (Multi-Agent Training)
+*   Multiple training arenas (containing robots and targets) are duplicated within the Unity Scene.
+*   A central manager script automatically discovers all robot agents in the scene and assigns them a unique index.
+*   This index maps to independent buffer arrays in the C++ DLL, allowing dozens of isolated parallel universes to be simulated thread-safely within a single C++ engine.
 
-  Unity\_Voxel\_RL\_Actions\_DLL.cpp    actuation modes (direct thermal / legacy CPG)
+### 5.3. Observation and Action Space Formulation
+*   **State Observation:** 
+    *   Localized relative vector and distance to the target.
+    *   The Up vector to determine the robot's orientation.
+    *   Local relative position, velocity, and angular velocity data for each voxel. Safe guards based on expected voxel counts are applied to fix the observation size.
+*   **Motor Action:** 
+    *   The ML-Agents neural network outputs continuous parameter signals to control motor voxels.
+    *   These signals are passed to the C++ engine, converted into Central Pattern Generator (CPG) parameters, or used for direct target volume control, generating smooth, sine-wave-like movements.
 
-  Unity\_Voxel\_FuncDLL.cpp           engine boot, worker thread, OpenMP robot loop
+### 5.4. Centralized Control and Episode Management
+*   Each agent operates on independent episode timelines, resetting the environment locally upon failure.
+*   Experience data independently gathered across all training arenas are aggregated to simultaneously update a single Proximal Policy Optimization (PPO) neural network via the Unity ML-Agents trainer, significantly enhancing learning speed.
 
-  Voxelyze\_Nested.cpp               nested-parallel time step
+### Summary
+This implementation specification outlines an architecture that harmoniously fuses the overwhelming physics computational power of the C++ Voxelyze engine with Unity's flexible ML-Agents framework. By meticulously managing memory via zero-allocation pointers, managing independent training arena buffers, and strictly enforcing lock-step synchronization, the system achieves stable and framerate-drop-free training for complex multi-soft-robot simulations.
 
-Assets/Scripts/RL/
-
-  RobotBodyProfile.cs               anatomy, muscle count, observation layout
-
-  RobotTaskProfile.cs               abstract task: rewards, termination, sizes
-
-  TargetTrackingProfile.cs          concrete task implementation
-
-  VoxelRobotAgent.cs                ML-Agents agent (delegates to the profile)
-
-  VoxelRLManager.cs                 lock-step decision cycle
-
-Assets/Scripts/Editor/
-
-  AutoBuilder.cs                    dual graphics \+ headless server build
-
-config/VoxBot33.yaml                PPO hyperparameters and engine settings
-
-## Scaling
-
-| Scene | Arenas | Simulated robots | Outer threads |
-| :---- | :---- | :---- | :---- |
-| `SingleArenaScene` | 1 | 2 | 2 |
-| `MultiArenaScene04` | 4 | 8 | 8 |
-| `MultiArenaScene16` | 16 | 32 | 32 |
-
-Each arena holds one RL robot plus one non-learning companion body. Total thread demand is *robots × per-robot `threadCount`* — oversubscribing a 64-core machine makes 16 arenas slower than 4, so lower `threadCount` as arena count rises.
-
-Keep the training YAML identical across scenes when comparing them. `buffer_size` counts total agent steps, so the number of policy updates at a given step count is unchanged — which is what makes the comparison meaningful.
-
----
-
-## Roadmap
-
-- [ ] Terrain and obstacle task variants beyond target tracking  
-- [ ] Morphology co-optimisation (evolving the voxel layout alongside the controller)  
-- [ ] Contact-state observations for gait learning on uneven ground  
-- [ ] Linux / headless cluster support
-
-## Acknowledgements
-
-Built on [Voxelyze](https://github.com/jonhiller/Voxelyze) by Jonathan Hiller and Hod Lipson. Observation and action design draws on *Evolution Gym* (Bhatia et al., NeurIPS 2021).
-
----
-
-#### Copyright (c) 2026 Y.S.Shim, PCU-Game Lab. All rights reserved.
+#### Copyright (c) 2026 [Y.S.Shim, PCU-Game Lab]. All rights reserved.
