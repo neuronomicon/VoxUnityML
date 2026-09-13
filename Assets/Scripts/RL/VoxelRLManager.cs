@@ -24,26 +24,23 @@ public class VoxelRLManager : MonoBehaviour
     const string DLL_NAME = VoxelDllConfig.DLL_NAME;
 
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void Step_All_Simulations_For_RL(int microSteps, float[] allActions, int[] rlRobotIndices, int numRlRobots, int actionSizePerRobot);
-    //public static extern void Step_All_Simulations_For_RL(int numRobots, int microSteps, float[] allActions, int actionSizePerRobot);
-
-    [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void Initialize_for_Unity_RL();
+    public static extern void CPP_Step_All_Simulations_For_RL(int microSteps, float[] allActions, int[] rlRobotIndices, 
+                                                            int numRlRobots, int actionSizePerRobot);
 
     // [추가] C++의 상태를 확인하는 DLL 함수 임포트
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int Check_Simulation_Ready();
+    public static extern int CPP_Check_Simulation_Ready();
 
 
     [Header("RL Synchronous Control")]
-    public int actionSizePerRobot = 34; // 로봇 1대당 모터 복셀 수
+    [ReadOnly] public int actionSizePerRobot = 0;//34; 자동으로 // 로봇 1대당 모터 복셀 수
 
     [Header("RL Timing and Synchronization (Based on 100Hz)")]
     [Tooltip("Number of physics steps to execute in C++ per FixedUpdate")]
-    public int stepsPerSimulationCycle = 125;
+    public int stepsPerSimulationCycle = 20;//125;
     
     [Tooltip("Decision Period applied uniformly to all robots")]
-    public int customDecisionPeriod = 4;
+    public int customDecisionPeriod = 1;//4;
 
     [Header("Auto-Detected RL Robots (Read Only)")]
     [ReadOnly] public int numRlRobots = 0;
@@ -52,7 +49,7 @@ public class VoxelRLManager : MonoBehaviour
     [ReadOnly] public int currentDecisionStep = 0;
 
 /*
-    [Header("강화학습 타이밍 및 동기화 (100Hz 기준)")]
+    [Header("강화학습 타이밍 및 동기화 (100Hz 기준)")] 
     [Tooltip("매 FixedUpdate마다 C++에서 진행할 물리 스텝")]
     public int stepsPerSimulationCycle = 125;
     
@@ -111,6 +108,7 @@ public class VoxelRLManager : MonoBehaviour
         
         numRlRobots = activeAgents.Length;
 
+    /*
         if (numRlRobots > 0)
         {
             rlRobotIndices = new int[numRlRobots];
@@ -123,6 +121,31 @@ public class VoxelRLManager : MonoBehaviour
             
             Debug.Log($"[VoxelRLManager] Total {numRlRobots} RL robots initialized in precise order.");
         }        
+    */
+
+        if (numRlRobots > 0)
+        {
+            actionSizePerRobot = activeAgents[0].taskProfile.GetActionSize();
+
+            rlRobotIndices     = new int[numRlRobots];
+            globalActionBuffer = new float[numRlRobots * actionSizePerRobot];
+
+            for (int i = 0; i < numRlRobots; i++)
+            {
+                rlRobotIndices[i] = activeAgents[i].robotIdx;
+
+                activeAgents[i].rlManager   = this;   // 주입
+                activeAgents[i].BufferIndex = i;      // IndexOf 제거
+
+                int sz = activeAgents[i].taskProfile.GetActionSize();
+                if (sz != actionSizePerRobot)
+                    Debug.LogError($"[VoxelRLManager] Robot {i} actionSize={sz} != {actionSizePerRobot}. " +
+                                $"C++ 배치 API 는 단일 크기만 받습니다.");
+            }
+
+            Debug.Log($"[VoxelRLManager] {numRlRobots} robots, actionSize={actionSizePerRobot}");
+        }
+
     }
 
 
@@ -131,16 +154,26 @@ public class VoxelRLManager : MonoBehaviour
     // [핵심] 이제 로봇 번호 대신 에이전트 자기 자신(this)을 인자로 받습니다.
     public void SubmitAction(VoxelRobotAgent agent, float[] robotActions)
     {
+        /*
         // 이 에이전트가 배열의 몇 번째 위치에 있는지 확인
         int bufferIndex = System.Array.IndexOf(activeAgents, agent);
         if (bufferIndex == -1) return;
-
-        // 버퍼 갱신
+        
         int offset = bufferIndex * actionSizePerRobot;
         for (int i = 0; i < actionSizePerRobot; i++)
-        {
             globalActionBuffer[offset + i] = robotActions[i];
-        }
+        */
+
+        int bufferIndex = agent.BufferIndex;
+        if (bufferIndex < 0) bufferIndex = System.Array.IndexOf(activeAgents, agent);  // 폴백
+        if (bufferIndex < 0) return;
+
+        int offset = bufferIndex * actionSizePerRobot;
+        int n = Mathf.Min(actionSizePerRobot, robotActions.Length);
+        for (int i = 0; i < n; i++)
+            globalActionBuffer[offset + i] = robotActions[i];
+
+
 
         receivedActionCount++;
 
@@ -150,7 +183,7 @@ public class VoxelRLManager : MonoBehaviour
             receivedActionCount = 0; // 다음 턴을 위해 초기화
 
             // C++로 액션 버퍼와 타겟 로봇 번호표를 함께 넘깁니다.
-            Step_All_Simulations_For_RL(stepsPerSimulationCycle, globalActionBuffer, rlRobotIndices, numRlRobots, actionSizePerRobot);
+            CPP_Step_All_Simulations_For_RL(stepsPerSimulationCycle, globalActionBuffer, rlRobotIndices, numRlRobots, actionSizePerRobot);
             isWaitingForCpp = true;
         }
     }
@@ -182,13 +215,11 @@ public class VoxelRLManager : MonoBehaviour
 
 
         // C++ 백그라운드 스레드가 연산을 마쳤다면
-        if (isWaitingForCpp && Check_Simulation_Ready() == 1)
+        if (isWaitingForCpp && CPP_Check_Simulation_Ready() == 1)
         {
             isWaitingForCpp = false;
-                        
+        
 
-            // 🌟 씬에 존재하는 모든 훈련장(VoxelPhysicsManager)을 찾아 일제히 동기화를 지시합니다.
-            //VoxelPhysicsManager[] allPhysicsAreas = FindObjectsByType<VoxelPhysicsManager>(FindObjectsSortMode.None);
             foreach (var area in allPhysicsAreas)
             {                
                 area.SyncPhysicsWithCpp();
@@ -197,63 +228,44 @@ public class VoxelRLManager : MonoBehaviour
 
             currentDecisionStep++;
 
-
+            /*
             // 🌟 [복구된 핵심 로직] 1/4, 2/4, 3/4, 4/4 지점(루프 5, 10, 15, 20)에서 관측값 기록
             int partialPeriod = customDecisionPeriod / 4;
 
             if (currentDecisionStep % partialPeriod == 0)
             {
-                foreach (var physInfo in allPhysicsInfos)
-                {
-                    // 뇌(Agent)가 있든 없든, 물리 연산 결과는 무조건 렌더링/위치 정보로 갱신합니다.
-                    physInfo.ForceMonitorVoxelState();
-                }
-
+                // 뇌(Agent)가 있든 없든, 물리 연산 결과는 무조건 렌더링/위치 정보로 갱신합니다.
+                foreach (var physInfo in allPhysicsInfos)   physInfo.ForceMonitorVoxelState();
 
                 int phaseIndex = (currentDecisionStep / partialPeriod) - 1; // 0, 1, 2, 3 인덱스
 
-                foreach (var agent in activeAgents)
-                {
-                    //var physicsInfo = agent.GetComponent<VoxelPhysicsInfo>();
-                    //if (physicsInfo != null) physicsInfo.ForceMonitorVoxelState();
-                    
-                    // 에이전트 내부 버퍼에 현재 위상의 상태(296개) 저장
-                    //agent.RecordIntermediateState(phaseIndex);
-                    agent.TriggerIntermediatePhase(phaseIndex);
-                }
+                foreach (var agent in activeAgents) agent.TriggerIntermediatePhase(phaseIndex);
             }
+            */
+
+            // 매 물리 사이클마다 최신 상태 반영 (위상 스택 제거)
+            foreach (var physInfo in allPhysicsInfos)   physInfo.ForceMonitorVoxelState();
+
+            // 사이클 훅 — 기본 구현은 비어 있음 (보상 적분용)
+            foreach (var agent in activeAgents) agent.TriggerIntermediatePhase(currentDecisionStep - 1, customDecisionPeriod);
 
 
             // 목표한 주기 (예: customDecisionPeriod(회) = 0.5초)에 도달했는가?
             if (currentDecisionStep >= customDecisionPeriod)
             {
                 currentDecisionStep = 0;
-
-                // [추가] 25번 주기(0.5초)가 제대로 돌고 있는지 콘솔에서 직접 확인!
-                //Debug.Log($"[RL Manager] {customDecisionPeriod}회 루프 도달 완료! 에이전트에게 새로운 Action을 요청합니다.");
-
-                // 1. 관측값 강제 최신화
-                //foreach (var agent in activeAgents)
-                //{
-                //    var physicsInfo = agent.GetComponent<VoxelPhysicsInfo>();
-                //    if (physicsInfo != null) physicsInfo.ForceMonitorVoxelState();
-                //}
-
+                
                 // 2. 에이전트 행동 지시 -> 이 함수가 위 SubmitAction()을 호출하면서 다시 사이클이 시작됩니다!
-                foreach (var agent in activeAgents)
-                {
-                    agent.RequestDecision(); 
-                }
+                foreach (var agent in activeAgents) agent.RequestDecision();
 
                 // 🚨 [CRITICAL FIX 2] 방금 깃발을 올린 에이전트들의 행동을 '지금 당장' 실행시킵니다!
                 // 이 함수가 호출되는 찰나의 순간에 OnActionReceived가 동기적으로 실행됩니다.
                 Academy.Instance.EnvironmentStep();
-
             }
             else
             {
                 // 🌟 [추가] 아직 25번을 못 채웠다면? 에이전트를 부르지 않고 기존 액션 그대로 C++ 시뮬레이션만 계속 돌립니다!
-                Step_All_Simulations_For_RL(stepsPerSimulationCycle, globalActionBuffer, rlRobotIndices, numRlRobots, actionSizePerRobot);
+                CPP_Step_All_Simulations_For_RL(stepsPerSimulationCycle, globalActionBuffer, rlRobotIndices, numRlRobots, actionSizePerRobot);
                 isWaitingForCpp = true;
             }
         }

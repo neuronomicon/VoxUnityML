@@ -3,7 +3,7 @@ using UnityEngine;
 using Unity.MLAgents.Sensors;
 using Unity.MLAgents.Actuators; 
 
-
+using UnityEngine.InputSystem; // Keyboard for Heuristic()
 
 // ==============================================================================
 // [TargetTrackingState] 타겟 추적 전용 런타임 상태 변수 묶음 (VoxelRobotAgent.cs 에서 조작 가능하도록)
@@ -16,7 +16,7 @@ public class TargetTrackingState : RobotTaskState
 
     [Header("🎯 Task Specific Realtime Variables")]
     public float previousDistance;
-    public Vector3 currentVoxelUpVector = Vector3.up;
+    //public Vector3 currentVoxelUpVector = Vector3.up;
     public Vector3 lastCheckedPos = Vector3.zero;
     public int freezeCount = 0;
     
@@ -24,7 +24,7 @@ public class TargetTrackingState : RobotTaskState
     //public float[,] observationBuffer = new float[4, 296];
 
     // [수정] 크기를 고정하지 않고 선언만 해둠
-    public float[,] observationBuffer;
+    //public float[,] observationBuffer;
 }
 
 
@@ -43,14 +43,21 @@ public class TargetTrackingProfile : RobotTaskProfile
     public float distanceRewardMultiplier = 2.0f; 
     public float targetReachThreshold = 0.2f; 
 
-    [Header("🦴 Robot Anatomy Parameters")]
-    //public int expectedVoxelCount = 33; 
+    
+    /*
+    [Header("🦴 Robot Anatomy Parameters")]    
     public int centerVoxelIdx = 16; 
     public int forwardVoxelA = 17; 
     public int forwardVoxelB = 15; 
     public int rightVoxelA = 21; 
     public int rightVoxelB = 11; 
-
+    */
+    
+    [Header("🧊 Freeze Detection")]
+    [Tooltip("연속 정지 판정 스텝 수. 50Hz 기준 125 = 2.5초")]
+    public int freezeStepLimit = 125;
+    
+    
     public override Type GetStateType() => typeof(TargetTrackingState);
     public override RobotTaskState CreateState() => new TargetTrackingState();
 
@@ -60,11 +67,12 @@ public class TargetTrackingProfile : RobotTaskProfile
 
         var tState = state as TargetTrackingState;
 
-        // 에이전트가 계산해둔 버퍼 크기를 가져와서 4개(Phase)의 슬롯을 동적 생성
+        /*// 에이전트가 계산해둔 버퍼 크기를 가져와서 4개(Phase)의 슬롯을 동적 생성
         if (tState.observationBuffer == null || tState.observationBuffer.GetLength(1) != agent.StateBufferSize)
         {
             tState.observationBuffer = new float[4, agent.StateBufferSize];
         }
+        */
 
         // 목표물(Target)을 로봇 근처 일정 범위 내 랜덤 재배치[cite: 1, 3]
         if (tState.targetTransform != null)
@@ -74,22 +82,26 @@ public class TargetTrackingProfile : RobotTaskProfile
             tState.targetTransform.localPosition = new Vector3(randomDir.x * randomDist - 0.25f, 0.5f, randomDir.y * randomDist - 0.25f);
         }
 
-        Vector3 robotCoM = agent.GetRobotCenterOfMass();
+        Vector3 robotCoM = agent.GetRobotCenterOfMass(body.expectedVoxelCount);
         
         if (tState.targetTransform != null)
         {
+            //Vector3 targetLocalPos = agent.PhysicsInfo.transform.InverseTransformPoint(tState.targetTransform.position);
+            //tState.previousDistance = Vector3.Distance(robotCoM, targetLocalPos);
+
             Vector3 targetLocalPos = agent.PhysicsInfo.transform.InverseTransformPoint(tState.targetTransform.position);
-            tState.previousDistance = Vector3.Distance(robotCoM, targetLocalPos);
+            Vector3 delta = targetLocalPos - robotCoM;
+            tState.previousDistance = new Vector2(delta.x, delta.z).magnitude;   // ← XZ
         }
 
         tState.freezeCount = 0;
         tState.lastCheckedPos = robotCoM;
-        tState.currentVoxelUpVector = Vector3.up;
+        //tState.currentVoxelUpVector = Vector3.up;
     }
 
-    public override void OnIntermediatePhase(VoxelRobotAgent agent, RobotTaskState state, int phaseIndex)
+    public override void OnIntermediatePhase(VoxelRobotAgent agent, RobotTaskState state, int phaseIndex, int cycleCount)
     {
-        if (phaseIndex < 0 || phaseIndex > 3) return;
+    /*    if (phaseIndex < 0 || phaseIndex > 3) return;
         var tState = state as TargetTrackingState;
 
         float[] currentState = agent.GetEgocentricVoxelState(expectedVoxelCount, 
@@ -103,14 +115,17 @@ public class TargetTrackingProfile : RobotTaskProfile
         {
             tState.observationBuffer[phaseIndex, i] = currentState[i];
         }
+    */
     }
 
+
+    
     public override void CollectObservations(VoxelRobotAgent agent, VectorSensor sensor, RobotTaskState state)
     {
         var tState = state as TargetTrackingState;
         if (tState == null) return;
 
-        // 1/4 ~ 4/4의 1184개(296 x 4) 데이터를 순서대로 신경망에 모두 밀어 넣음[cite: 1, 3]
+        /*// 1/4 ~ 4/4의 1184개(296 x 4) 데이터를 순서대로 신경망에 모두 밀어 넣음[cite: 1, 3]
         for (int phase = 0; phase < 4; phase++)
         {
             for (int i = 0; i < agent.StateBufferSize; i++)
@@ -118,18 +133,27 @@ public class TargetTrackingProfile : RobotTaskProfile
                 sensor.AddObservation(tState.observationBuffer[phase, i]);
             }
         }
+        */
+
+        float[] s = agent.GetEgocentricVoxelState(body, tState.targetTransform);
+        for (int i = 0; i < agent.StateBufferSize; i++) sensor.AddObservation(s[i]);
+
+        // 액추에이터 1차 지연 보정 — 반드시 마지막에
+        AddActuatorObservations(agent, sensor);        
     }
 
     public override void OnActionReceived(VoxelRobotAgent agent, ActionBuffers actionBuffers, RobotTaskState state)
     {
+        if (body == null) return;
+
         var tState = state as TargetTrackingState;
-        Vector3 currentCoM = agent.GetRobotCenterOfMass();
+        Vector3 currentCoM = agent.GetRobotCenterOfMass(body.expectedVoxelCount);
         bool isDone = false; 
 
         // [1. 공회전 체크] 로봇이 움직이지 않고 굳었을 때 마이너스 보상[cite: 1, 3]
         if (Vector3.Distance(currentCoM, tState.lastCheckedPos) < 0.00001f) {
             tState.freezeCount++;
-            if (tState.freezeCount > 5) {
+            if (tState.freezeCount > freezeStepLimit) {
                 Debug.LogError($"[{agent.name}] Robot freeze not moving! Will reset.");
                 agent.AddReward(failPenalty); 
                 isDone = true;
@@ -142,7 +166,10 @@ public class TargetTrackingProfile : RobotTaskProfile
         // [2. 타겟 체크] 타겟 도달 시 플러스 보상[cite: 1, 3]
         if (!isDone && tState.targetTransform != null) {
             Vector3 targetLocalPos = agent.PhysicsInfo.transform.InverseTransformPoint(tState.targetTransform.position);
-            float currentDistance = Vector3.Distance(currentCoM, targetLocalPos);
+            
+            //float currentDistance = Vector3.Distance(currentCoM, targetLocalPos);
+            Vector3 delta = targetLocalPos - currentCoM;
+            float currentDistance = new Vector2(delta.x, delta.z).magnitude;   // ← XZ 로 통일
             
             float rewardDelta = tState.previousDistance - currentDistance;
             agent.AddReward(rewardDelta * distanceRewardMultiplier);
@@ -156,7 +183,8 @@ public class TargetTrackingProfile : RobotTaskProfile
         }
 
         // [3. 추락 및 뒤집힘 체크][cite: 1, 3]
-        if (!isDone && (currentCoM.y < -2.0f || Vector3.Dot(tState.currentVoxelUpVector, Vector3.up) < 0f)) {
+        //if (!isDone && (currentCoM.y < -2.0f || Vector3.Dot(tState.currentVoxelUpVector, Vector3.up) < 0f)) {
+        if (!isDone && (currentCoM.y < -2.0f || Vector3.Dot(agent.LastUpVector, Vector3.up) < 0f)) {
             agent.AddReward(failPenalty);
             isDone = true;
         }
@@ -175,6 +203,46 @@ public class TargetTrackingProfile : RobotTaskProfile
 
     public override void Heuristic(VoxelRobotAgent agent, in ActionBuffers actionsOut, RobotTaskState state)
     {
-        // 휴리스틱 (키보드 조작) 로직 필요 시 구현
+        var ca = actionsOut.ContinuousActions;
+
+        float amp = 0f;
+        if (Keyboard.current != null)
+        {
+            if (Keyboard.current.dKey.isPressed || Keyboard.current.rightArrowKey.isPressed)     amp =  1.0f;
+            else if (Keyboard.current.aKey.isPressed || Keyboard.current.leftArrowKey.isPressed) amp = -1.0f;
+        }
+
+        // 근육마다 위상을 어긋나게 -> 진행파가 생겨 실제로 이동/회전함
+        float t = Time.time;
+        for (int i = 0; i < ca.Length; i++)
+            ca[i] = amp * Mathf.Sin(2f * Mathf.PI * 2f * t + i * 0.5f);
+
+
+/*        // 휴리스틱 (키보드 조작) 로직 필요 시 구현
+        var continuousActionsOut = actionsOut.ContinuousActions;
+        
+        float horizontalInput = 0f;
+
+        // 새로운 Input System을 사용한 키보드 입력 처리
+        if (Keyboard.current != null)
+        {
+            // D키나 오른쪽 화살표를 누르면 +1
+            if (Keyboard.current.dKey.isPressed || Keyboard.current.rightArrowKey.isPressed)
+            {
+                horizontalInput = 1.0f;
+            }
+            // A키나 왼쪽 화살표를 누르면 -1
+            else if (Keyboard.current.aKey.isPressed || Keyboard.current.leftArrowKey.isPressed)
+            {
+                horizontalInput = -1.0f;
+            }
+        }
+
+        // 결정된 입력값을 로봇의 모든 모터에 전달 (테스트용)
+        for (int i = 0; i < continuousActionsOut.Length; i++)
+        {
+            continuousActionsOut[i] = horizontalInput;
+        }
+        */
     }
 }

@@ -22,12 +22,12 @@ using Unity.MLAgents.Sensors;
 using Unity.MLAgents.Actuators;
 using Unity.MLAgents.Policies; // 🌟 BehaviorParameters 제어를 위해 추가!
 
-using UnityEngine.InputSystem; // Keyboard for Heuristic()
+
 
 public class VoxelRobotAgent : Agent // ML-Agents의 Agent 클래스 상속[cite: 1, 3, 11]
 {
     [DllImport(VoxelDllConfig.DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void Reset_Voxel_Unity(int robotIdx); // C++ 초기화 함수 연결[cite: 1, 3, 11]
+    public static extern void CPP_Reset_Voxel_Unity(int robotIdx); // C++ 초기화 함수 연결[cite: 1, 3, 11]
 
     [Header("🤖 Robot ID")]
     public int robotIdx = 0;
@@ -35,6 +35,11 @@ public class VoxelRobotAgent : Agent // ML-Agents의 Agent 클래스 상속[cite
     [HideInInspector] public VoxelRLManager rlManager;
     [HideInInspector] public VoxelPhysicsInfo PhysicsInfo { get; private set; }
 
+
+    
+    [HideInInspector] public int BufferIndex = -1;   // Manager 가 주입
+    [Header("Debug")]
+    public bool logEpisodeProgress = false;
 
 
 
@@ -45,11 +50,14 @@ public class VoxelRobotAgent : Agent // ML-Agents의 Agent 클래스 상속[cite
     public RobotTaskState runtimeState;
 
     
-    // 🌟 2026-08-28 [핵심] 가비지 컬렉터(GC) 폭발을 막기 위한 재사용 버퍼 미리 할당
-    //private float[] egocentricStateBuffer = new float[296];
+    // 로컬 프레임의 up 축. 뒤집힘 감지 + 프레임 퇴화 시 폴백에 사용
+    public Vector3 LastUpVector { get; private set; } = Vector3.up;
+    // 직전 스텝의 액션 (관측 시점 기준). 마르코프 복구용
+    public float[] PrevAction => actionBuffer;
 
-    // 🌟 2D 타겟 추적용으로 복원된 크기 (타겟 정보 2개 + 내 속도/각속도 6개 + 복셀 정보 9 * (N-1))
-    // expectedVoxelCount가 33일 때 정확히 296 크기를 가집니다.
+
+
+    // 타겟 정보 3개 + 내 속도/각속도 6개 + 복셀 정보 6 * 33 ==> 207개    
     public int StateBufferSize { get; private set; } 
     private float[] egocentricStateBuffer;
 
@@ -70,7 +78,7 @@ public class VoxelRobotAgent : Agent // ML-Agents의 Agent 클래스 상속[cite
         // 🌟 게임(훈련)이 시작될 때 안전하게 한 번 더 적용
         ApplyProfileSettingsToComponents();
 
-        // 🌟 배열 크기 동적 계산 (Y축이 빠져 타겟 정보가 2개로 유지됨)
+    /*  // 🌟 배열 크기 동적 계산 (Y축이 빠져 타겟 정보가 2개로 유지됨)
         if (taskProfile != null)
         {
             StateBufferSize = 2 + 6 + 9 * (taskProfile.expectedVoxelCount - 1);
@@ -79,6 +87,18 @@ public class VoxelRobotAgent : Agent // ML-Agents의 Agent 클래스 상속[cite
             // 🌟 액션 배열도 한 번만 메모리에 할당해 둡니다.
             actionBuffer = new float[taskProfile.continuousActions];
         }
+    */
+        if (taskProfile != null && taskProfile.body != null)
+        {
+            StateBufferSize = taskProfile.body.EgocentricStateSize;
+            egocentricStateBuffer = new float[StateBufferSize];
+            actionBuffer = new float[Mathf.Max(1, taskProfile.GetActionSize())];
+        }
+        else
+        {
+            Debug.LogError($"[{name}] taskProfile 또는 body 가 비어 있습니다.");
+        }
+
     }
 
     private void OnValidate()
@@ -115,10 +135,12 @@ public class VoxelRobotAgent : Agent // ML-Agents의 Agent 클래스 상속[cite
         {
             // Behavior Name 적용
             bp.BehaviorName = taskProfile.behaviorName;            
-            // Space Size (Vector Observation) 적용
-            bp.BrainParameters.VectorObservationSize = taskProfile.spaceSize;            
-            // Continuous Actions 적용 (ML-Agents 최신 API 방식)
-            bp.BrainParameters.ActionSpec = ActionSpec.MakeContinuous(taskProfile.continuousActions);
+            
+            //bp.BrainParameters.VectorObservationSize = taskProfile.spaceSize;            
+            //bp.BrainParameters.ActionSpec = ActionSpec.MakeContinuous(taskProfile.continuousActions);
+
+            bp.BrainParameters.VectorObservationSize = taskProfile.GetObservationSize();
+            bp.BrainParameters.ActionSpec = ActionSpec.MakeContinuous(taskProfile.GetActionSize());
         }
     }
 
@@ -128,6 +150,9 @@ public class VoxelRobotAgent : Agent // ML-Agents의 Agent 클래스 상속[cite
     
     public override void OnEpisodeBegin()
     {
+        LastUpVector = Vector3.up;
+        if (actionBuffer != null) Array.Clear(actionBuffer, 0, actionBuffer.Length);
+
         if (taskProfile != null) taskProfile.OnEpisodeBegin(this, runtimeState);
     }
 
@@ -143,56 +168,41 @@ public class VoxelRobotAgent : Agent // ML-Agents의 Agent 클래스 상속[cite
 
         // 2. 모터 제어 신호를 매니저(전역 큐)로 제출[cite: 2, 3]
         var continuousActions = actionBuffers.ContinuousActions;
-        //float[] actionArray = new float[continuousActions.Length];
-        for (int i = 0; i < continuousActions.Length; i++) actionBuffer[i] = continuousActions[i];
+        
+        
+        if (actionBuffer == null) return;   // ① 방어
+        int n = Mathf.Min(continuousActions.Length, actionBuffer.Length);   // ② 방어
+        for (int i = 0; i < n; i++) actionBuffer[i] = continuousActions[i];
 
         if (rlManager != null) rlManager.SubmitAction(this, actionBuffer); 
 
 
-        int senseFreq = MaxStep / 4;    // 에피소드의 25% 씩 진행상황 표시
+/*        int senseFreq = MaxStep / 4;    // 에피소드의 25% 씩 진행상황 표시
         if (StepCount % senseFreq == 0) {
             float pRate = 100.0f*(float)StepCount/(float)MaxStep;
             double currentSimTime = (PhysicsInfo != null) ? PhysicsInfo.currentRobotStep : 0f;
             Debug.Log($"[VoxelRobotAgent] Episode Progress:[{pRate}%] Agent step: {StepCount}/{MaxStep} | C++Time: {currentSimTime:F3}s");
         }
+*/
+        if (logEpisodeProgress && MaxStep >= 4 && StepCount % (MaxStep / 4) == 0)
+        {
+            float pRate = 100.0f * (float)StepCount / (float)MaxStep;
+            double t = (PhysicsInfo != null) ? PhysicsInfo.currentRobotStep : 0f;
+            Debug.Log($"[VoxelRobotAgent] [{pRate}%] {StepCount}/{MaxStep} | C++Time: {t:F3}s");
+        }
     }
 
     public override void Heuristic(in ActionBuffers actionsOut)
     {
-        //if (taskProfile != null) taskProfile.Heuristic(this, actionsOut, runtimeState);
-
-        var continuousActionsOut = actionsOut.ContinuousActions;
-        
-        float horizontalInput = 0f;
-
-        // 새로운 Input System을 사용한 키보드 입력 처리
-        if (Keyboard.current != null)
-        {
-            // D키나 오른쪽 화살표를 누르면 +1
-            if (Keyboard.current.dKey.isPressed || Keyboard.current.rightArrowKey.isPressed)
-            {
-                horizontalInput = 1.0f;
-            }
-            // A키나 왼쪽 화살표를 누르면 -1
-            else if (Keyboard.current.aKey.isPressed || Keyboard.current.leftArrowKey.isPressed)
-            {
-                horizontalInput = -1.0f;
-            }
-        }
-
-        // 결정된 입력값을 로봇의 모든 모터에 전달 (테스트용)
-        for (int i = 0; i < continuousActionsOut.Length; i++)
-        {
-            continuousActionsOut[i] = horizontalInput;
-        }
+        if (taskProfile != null) taskProfile.Heuristic(this, actionsOut, runtimeState);
     }
 
     // 매니저에서 1/4 주기마다 호출할 위상(Phase) 캡처 함수
-    public void TriggerIntermediatePhase(int phaseIndex)
+    public void TriggerIntermediatePhase(int phaseIndex, int cycleCount)
     {
         if (taskProfile != null) 
         {
-            taskProfile.OnIntermediatePhase(this, runtimeState, phaseIndex);
+            taskProfile.OnIntermediatePhase(this, runtimeState, phaseIndex, cycleCount);
         }
     }
 
@@ -207,78 +217,96 @@ public class VoxelRobotAgent : Agent // ML-Agents의 Agent 클래스 상속[cite
     }
 
 
-    // 🌟 unsafe 키워드 추가 및 포인터 직접 참조로 변경 (GC 완전 제거)
-    public unsafe float[] GetEgocentricVoxelState(int expectedVoxelCount, int centerIdx, int fwdA, int fwdB, int rightA, int rightB, Transform currentTarget = null)
+    public unsafe float[] GetEgocentricVoxelState(RobotBodyProfile body, Transform currentTarget = null)
     {
-        int index = 0;
+        if (body == null || egocentricStateBuffer == null) return egocentricStateBuffer;
 
-        if (PhysicsInfo == null || PhysicsInfo.lastStatePtr == IntPtr.Zero || PhysicsInfo.lastVoxelCount < expectedVoxelCount)
-            return egocentricStateBuffer; 
+        int  N      = body.expectedVoxelCount;
+        int  fwdA   = body.forwardVoxelA, fwdB   = body.forwardVoxelB;
+        int  rightA = body.rightVoxelA,   rightB = body.rightVoxelB;
+        bool useAng = body.includeVoxelAngVel;
 
-        // Marshal.PtrToStructure 대신 C++ 메모리 다이렉트 뷰어(Pointer) 사용
-        VoxelRealTimeState* voxels = (VoxelRealTimeState*)PhysicsInfo.lastStatePtr.ToPointer();
-
-        for (int i = 0; i < expectedVoxelCount; i++)
+        if (egocentricStateBuffer.Length < body.EgocentricStateSize)
         {
-            // NaN 유입 시 즉각 빈 배열 반환하여 신경망 붕괴 차단 (EndEpisode는 재귀 에러 방지를 위해 제외)
-            if (float.IsNaN(voxels[i].pos.x) || float.IsNaN(voxels[i].vel.x))
-            {
-                Array.Clear(egocentricStateBuffer, 0, egocentricStateBuffer.Length);
-                return egocentricStateBuffer; 
-            }
+            StateBufferSize = body.EgocentricStateSize;
+            egocentricStateBuffer = new float[StateBufferSize];
         }
 
-        Vector3 dirZ = voxels[fwdA].pos - voxels[fwdB].pos;
-        Vector3 localZ = SafeNormalize(dirZ, Vector3.forward);
 
-        Vector3 dirTempX = voxels[rightA].pos - voxels[rightB].pos;
-        Vector3 tempX = SafeNormalize(dirTempX, Vector3.right);
+        Array.Clear(egocentricStateBuffer, 0, egocentricStateBuffer.Length);
 
-        Vector3 dirY = Vector3.Cross(localZ, tempX);
-        Vector3 localY = SafeNormalize(dirY, Vector3.up);
+        if (PhysicsInfo == null || PhysicsInfo.lastStatePtr == IntPtr.Zero || PhysicsInfo.lastVoxelCount < N)
+            return egocentricStateBuffer;
 
-        Vector3 dirX = Vector3.Cross(localY, localZ);
-        Vector3 localX = SafeNormalize(dirX, Vector3.right);
+        VoxelRealTimeState* voxels = (VoxelRealTimeState*)PhysicsInfo.lastStatePtr.ToPointer();
 
-        if (currentTarget != null)
+        // NaN 차단 — 신경망 붕괴 방지
+        for (int i = 0; i < N; i++)
+            if (float.IsNaN(voxels[i].pos.x) || float.IsNaN(voxels[i].vel.x))
+                return egocentricStateBuffer;
+
+        // ── CoM 기준값 (보상과 동일한 기준) ──
+        Vector3 com = Vector3.zero, comVel = Vector3.zero, comAngVel = Vector3.zero;
+        for (int i = 0; i < N; i++)
         {
-            Vector3 targetLocalPos = PhysicsInfo.transform.InverseTransformPoint(currentTarget.position);
-            Vector3 localTargetDir = targetLocalPos - voxels[centerIdx].pos;
+            com       += voxels[i].pos;
+            comVel    += voxels[i].vel;
+            comAngVel += voxels[i].angVel;
+        }
+        float invN = 1f / N;
+        com *= invN;  comVel *= invN;  comAngVel *= invN;
 
-            float localTargetX = Vector3.Dot(localTargetDir, localX);
-            float localTargetZ = Vector3.Dot(localTargetDir, localZ);
+        // ── 로컬 프레임 (퇴화 방어) ──
+        Vector3 localZ = SafeNormalize(voxels[fwdA].pos   - voxels[fwdB].pos,   Vector3.forward);
+        Vector3 tempX  = SafeNormalize(voxels[rightA].pos - voxels[rightB].pos, Vector3.right);
 
-            float distanceXZ = new Vector2(localTargetX, localTargetZ).magnitude;
-            float yawAngle = Mathf.Atan2(localTargetX, localTargetZ) / Mathf.PI; 
-
-            egocentricStateBuffer[index++] = yawAngle;
-            egocentricStateBuffer[index++] = distanceXZ;
+        // 둘 다 단위벡터이므로 |cross| = sin(사잇각)
+        Vector3 dirY = Vector3.Cross(localZ, tempX);
+        Vector3 localY;
+        if (dirY.sqrMagnitude < 0.01f)        // sin < 0.1 (약 5.7도) -> 퇴화
+        {
+            localY = LastUpVector;              // 직전 프레임 유지 -> 관측이 튀지 않음
         }
         else
         {
-            egocentricStateBuffer[index++] = 0f;
-            egocentricStateBuffer[index++] = 0f;
+            localY = dirY.normalized;
+            LastUpVector = localY;              // 뒤집힘 감지용
         }
 
-        // 중심 복셀 속도
-        Vector3 centerVel = voxels[centerIdx].vel;
-        Vector3 centerAngVel = voxels[centerIdx].angVel;
-        
-        egocentricStateBuffer[index++] = Vector3.Dot(centerVel, localX);
-        egocentricStateBuffer[index++] = Vector3.Dot(centerVel, localY);
-        egocentricStateBuffer[index++] = Vector3.Dot(centerVel, localZ);
-        egocentricStateBuffer[index++] = Vector3.Dot(centerAngVel, localX);
-        egocentricStateBuffer[index++] = Vector3.Dot(centerAngVel, localY);
-        egocentricStateBuffer[index++] = Vector3.Dot(centerAngVel, localZ);
+        Vector3 localX = SafeNormalize(Vector3.Cross(localY, localZ), Vector3.right);
 
-        // 나머지 복셀 상대 상태
-        for (int i = 0; i < expectedVoxelCount; i++)
+        int index = 0;
+
+        // ── [0-2] 타겟: 방향 단위벡터 + 정규화 거리 (불연속 없음) ──
+        if (currentTarget != null)
         {
-            if (i == centerIdx) continue; 
+            Vector3 targetLocalPos = PhysicsInfo.transform.InverseTransformPoint(currentTarget.position);
+            Vector3 d = targetLocalPos - com;
 
-            Vector3 relPos = voxels[i].pos - voxels[centerIdx].pos;
-            Vector3 relVel = voxels[i].vel - voxels[centerIdx].vel;
-            Vector3 relAngVel = voxels[i].angVel - voxels[centerIdx].angVel;
+            float tx   = Vector3.Dot(d, localX);
+            float tz   = Vector3.Dot(d, localZ);
+            float dist = Mathf.Sqrt(tx * tx + tz * tz);
+            float inv  = dist > 1e-6f ? 1f / dist : 0f;
+
+            egocentricStateBuffer[index++] = tx * inv;                                  // sin
+            egocentricStateBuffer[index++] = tz * inv;                                  // cos
+            egocentricStateBuffer[index++] = Mathf.Min(dist / body.targetDistScale, 2f);
+        }
+        else { index += 3; }   // 이미 0 으로 clear 됨
+
+        // ── [3-8] CoM 속도 / 평균 각속도 ──
+        egocentricStateBuffer[index++] = Vector3.Dot(comVel,    localX);
+        egocentricStateBuffer[index++] = Vector3.Dot(comVel,    localY);
+        egocentricStateBuffer[index++] = Vector3.Dot(comVel,    localZ);
+        egocentricStateBuffer[index++] = Vector3.Dot(comAngVel, localX);
+        egocentricStateBuffer[index++] = Vector3.Dot(comAngVel, localY);
+        egocentricStateBuffer[index++] = Vector3.Dot(comAngVel, localZ);
+
+        // ── [9~] 복셀별 CoM 상대 상태 (전체 복셀) ──
+        for (int i = 0; i < N; i++)
+        {
+            Vector3 relPos = voxels[i].pos - com;
+            Vector3 relVel = voxels[i].vel - comVel;
 
             egocentricStateBuffer[index++] = Vector3.Dot(relPos, localX);
             egocentricStateBuffer[index++] = Vector3.Dot(relPos, localY);
@@ -288,41 +316,38 @@ public class VoxelRobotAgent : Agent // ML-Agents의 Agent 클래스 상속[cite
             egocentricStateBuffer[index++] = Vector3.Dot(relVel, localY);
             egocentricStateBuffer[index++] = Vector3.Dot(relVel, localZ);
 
-            egocentricStateBuffer[index++] = Vector3.Dot(relAngVel, localX);
-            egocentricStateBuffer[index++] = Vector3.Dot(relAngVel, localY);
-            egocentricStateBuffer[index++] = Vector3.Dot(relAngVel, localZ);
+            if (useAng)
+            {
+                Vector3 relAng = voxels[i].angVel - comAngVel;
+                egocentricStateBuffer[index++] = Vector3.Dot(relAng, localX);
+                egocentricStateBuffer[index++] = Vector3.Dot(relAng, localY);
+                egocentricStateBuffer[index++] = Vector3.Dot(relAng, localZ);
+            }
         }
 
-        // 새 배열 대신 초기화된 재사용 버퍼를 리턴합니다.
         return egocentricStateBuffer;
     }
 
     // 🌟 unsafe 키워드 추가 및 포인터 직접 참조로 변경 (GC 완전 제거)
-    public unsafe Vector3 GetRobotCenterOfMass()
+    public unsafe Vector3 GetRobotCenterOfMass(int voxelCount = 0)
     {
-        if (PhysicsInfo != null && PhysicsInfo.lastStatePtr != IntPtr.Zero && PhysicsInfo.lastVoxelCount > 0)
-        {   
-            int totalVoxels = PhysicsInfo.lastVoxelCount; 
-            
-            // Marshal.PtrToStructure 제거 후 포인터 배열로 다이렉트 캐스팅
-            VoxelRealTimeState* statePtr = (VoxelRealTimeState*)PhysicsInfo.lastStatePtr.ToPointer();
-            
-            Vector3 sum = Vector3.zero;
+        if (PhysicsInfo == null || PhysicsInfo.lastStatePtr == IntPtr.Zero || PhysicsInfo.lastVoxelCount <= 0)
+            return Vector3.zero;
 
-            for (int i = 0; i < totalVoxels; i++)
-            {
-                // 쓰레기값이나 폭발(NaN)을 감지하면 즉시 (0,0,0) 반환
-                // (EndEpisode() 호출은 재귀 에러 유발 가능성이 있으므로 제외)
-                if (float.IsNaN(statePtr[i].pos.x) || float.IsNaN(statePtr[i].pos.y) || float.IsNaN(statePtr[i].pos.z))
-                {
-                    return Vector3.zero; 
-                }
+        int totalVoxels = (voxelCount > 0 && voxelCount <= PhysicsInfo.lastVoxelCount)
+                        ? voxelCount : PhysicsInfo.lastVoxelCount;
 
-                sum += statePtr[i].pos;
-            }
-            return sum / totalVoxels;
+        VoxelRealTimeState* statePtr = (VoxelRealTimeState*)PhysicsInfo.lastStatePtr.ToPointer();
+        Vector3 sum = Vector3.zero;
+
+        for (int i = 0; i < totalVoxels; i++)
+        {
+            if (float.IsNaN(statePtr[i].pos.x) || float.IsNaN(statePtr[i].pos.y) || float.IsNaN(statePtr[i].pos.z))
+                return Vector3.zero;
+
+            sum += statePtr[i].pos;
         }
-        return Vector3.zero; 
+        return sum / totalVoxels;
     }
 
 

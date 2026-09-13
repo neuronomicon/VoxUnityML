@@ -12,26 +12,64 @@ public abstract class RobotTaskState { }
 
 public abstract class RobotTaskProfile : ScriptableObject
 {      
-    
+/*    
     [Header("Robot Model (Body) Settings")]
     [HideInInspector] public string selectedVoxFileName;
 
-    // 🌟 [이곳에 추가!] 모든 태스크가 공통으로 알아야 할 로봇의 총 복셀 개수
     [Header("로봇 공통 제원")]    
     public int expectedVoxelCount = 33;
-
-    [Header("🤖 ML-Agents Auto Settings (Behavior Parameters)")]
-    [Tooltip("Training Behavior Name")]
-    public string behaviorName = "VoxBot33";
     
     [Tooltip("Total number of sensor observations")]
     public int spaceSize = 1184;
     
     [Tooltip("Total number of motor control actions")]
     public int continuousActions = 66;
+*/
+    [Header("🦴 Robot Body (Drag Body Asset!)")]
+    public RobotBodyProfile body;
+
+    // 관측·액션 크기를 유도값으로. 필요하면 파생 프로필에서 오버라이드
+    //public virtual int GetObservationSize() => body != null ? body.EgocentricStateSize : 0;
+    public virtual int GetObservationSize() => body != null ? body.EgocentricStateSize + body.muscleCount : 0;
+
+    public virtual int GetActionSize()      => body != null ? body.muscleCount        : 0;
+
+
+    /// 파생 프로필의 CollectObservations 마지막에 반드시 호출.
+    /// 액추에이터 1차 지연(EMA, tau~50ms) 때문에 이전 액션이 있어야 MDP 가 마르코프가 됨.
+    protected void AddActuatorObservations(VoxelRobotAgent agent, VectorSensor sensor)
+    {
+        var prev = agent.PrevAction;
+        int n = (body != null) ? body.muscleCount : 0;
+
+        // 개수는 GetObservationSize() 와 항상 일치해야 하므로 무조건 n 개를 쓴다
+        for (int i = 0; i < n; i++)
+            sensor.AddObservation((prev != null && i < prev.Length) ? prev[i] : 0f);
+    }
+
+
+    [Header("🤖 ML-Agents Auto Settings (Behavior Parameters)")]
+    [Tooltip("Training Behavior Name")]
+    public string behaviorName = "VoxBot33";
     
-    [Tooltip("Max RL-NN steps per episode")]
+    [Tooltip("Max RL-NN steps per episode (0=unlimited)")]
     public int maxStep = 40;
+
+
+    public abstract Type GetStateType();
+    public abstract RobotTaskState CreateState();
+
+    public virtual void OnEpisodeBegin(VoxelRobotAgent agent, RobotTaskState state)
+    {
+        Debug.Log($"[{agent.name}] Episode Begin!");
+                
+        VoxelRobotAgent.CPP_Reset_Voxel_Unity(agent.robotIdx);
+    }
+
+    public virtual void OnIntermediatePhase(VoxelRobotAgent agent, RobotTaskState state, int phaseIndex, int cycleCount) { }
+    public abstract void CollectObservations(VoxelRobotAgent agent, VectorSensor sensor, RobotTaskState state);
+    public abstract void OnActionReceived(VoxelRobotAgent agent, ActionBuffers actionBuffers, RobotTaskState state);
+    public abstract void Heuristic(VoxelRobotAgent agent, in ActionBuffers actionsOut, RobotTaskState state);
 
 #if UNITY_EDITOR
     private void OnValidate()
@@ -58,45 +96,6 @@ public abstract class RobotTaskProfile : ScriptableObject
     }
 #endif
 
-/*    // ▼▼▼ 여기에 실시간 동기화 코드를 추가합니다 ▼▼▼
-#if UNITY_EDITOR
-    private void OnValidate()
-    {
-        // 씬(Scene)에 있는 모든 VoxelRobotAgent를 찾습니다.
-        VoxelRobotAgent[] allAgents = FindObjectsByType<VoxelRobotAgent>(FindObjectsSortMode.None);
-        
-        foreach (var agent in allAgents)
-        {
-            // 이 에셋(나 자신)을 뇌로 장착하고 있는 로봇을 발견하면
-            if (agent.taskProfile == this)
-            {
-                // 로봇에게 즉시 컴포넌트를 강제 동기화하라고 명령합니다!
-                agent.ApplyProfileSettingsToComponents();
-                
-                // 유니티 에디터에게 "이 로봇 정보가 갱신되었으니 화면에 새로 그려줘!" 라고 알려줍니다.
-                UnityEditor.EditorUtility.SetDirty(agent);
-                var bp = agent.GetComponent<Unity.MLAgents.Policies.BehaviorParameters>();
-                if (bp != null) UnityEditor.EditorUtility.SetDirty(bp);
-            }
-        }
-    }
-#endif
-*/
-
-    public abstract Type GetStateType();
-    public abstract RobotTaskState CreateState();
-
-    public virtual void OnEpisodeBegin(VoxelRobotAgent agent, RobotTaskState state)
-    {
-        Debug.Log($"[{agent.name}] Episode Begin!");
-                
-        VoxelRobotAgent.Reset_Voxel_Unity(agent.robotIdx);
-    }
-
-    public virtual void OnIntermediatePhase(VoxelRobotAgent agent, RobotTaskState state, int phaseIndex) { }
-    public abstract void CollectObservations(VoxelRobotAgent agent, VectorSensor sensor, RobotTaskState state);
-    public abstract void OnActionReceived(VoxelRobotAgent agent, ActionBuffers actionBuffers, RobotTaskState state);
-    public abstract void Heuristic(VoxelRobotAgent agent, in ActionBuffers actionsOut, RobotTaskState state);
 }
 
 

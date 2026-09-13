@@ -12,20 +12,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d306081f4f05a694bafa4a4d3ec4c0a3, type: 3}
   m_Name: TargetTracking_Vox33
   m_EditorClassIdentifier: Assembly-CSharp::TargetTrackingProfile
-  selectedVoxFileName: 
+  body: {fileID: 11400000, guid: c798ca6e5200df742af3e2b66ae94da3, type: 2}
   behaviorName: VoxBot33
-  spaceSize: 1184
-  continuousActions: 66
-  maxStep: 40
+  maxStep: 500
   minSpawnDist: 2.5
   maxSpawnDist: 3.5
   successReward: 5
   failPenalty: -1
   distanceRewardMultiplier: 2
   targetReachThreshold: 0.2
-  expectedVoxelCount: 33
-  centerVoxelIdx: 16
-  forwardVoxelA: 17
-  forwardVoxelB: 15
-  rightVoxelA: 21
-  rightVoxelB: 11
+  freezeStepLimit: 125

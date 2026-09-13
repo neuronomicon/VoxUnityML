@@ -128,6 +128,10 @@ PrefabInstance:
     m_TransformParent: {fileID: 0}
     m_Modifications:
     - target: {fileID: 84270445628593848, guid: bad601d82110acd419eee2cded6cc373, type: 3}
+      propertyPath: MaxStep
+      value: 500
+      objectReference: {fileID: 0}
+    - target: {fileID: 84270445628593848, guid: bad601d82110acd419eee2cded6cc373, type: 3}
       propertyPath: m_Enabled
       value: 1
       objectReference: {fileID: 0}
@@ -587,6 +591,10 @@ PrefabInstance:
     m_TransformParent: {fileID: 0}
     m_Modifications:
     - target: {fileID: 84270445628593848, guid: bad601d82110acd419eee2cded6cc373, type: 3}
+      propertyPath: MaxStep
+      value: 500
+      objectReference: {fileID: 0}
+    - target: {fileID: 84270445628593848, guid: bad601d82110acd419eee2cded6cc373, type: 3}
       propertyPath: m_Enabled
       value: 1
       objectReference: {fileID: 0}
@@ -781,8 +789,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::VoxelRLManager
   actionSizePerRobot: 66
-  stepsPerSimulationCycle: 125
-  customDecisionPeriod: 4
+  stepsPerSimulationCycle: 20
+  customDecisionPeriod: 1
   numRlRobots: 0
   currentDecisionStep: 0
 --- !u!1 &410087039
@@ -1054,6 +1062,10 @@ PrefabInstance:
     m_TransformParent: {fileID: 0}
     m_Modifications:
     - target: {fileID: 84270445628593848, guid: bad601d82110acd419eee2cded6cc373, type: 3}
+      propertyPath: MaxStep
+      value: 500
+      objectReference: {fileID: 0}
+    - target: {fileID: 84270445628593848, guid: bad601d82110acd419eee2cded6cc373, type: 3}
       propertyPath: m_Enabled
       value: 1
       objectReference: {fileID: 0}
@@ -1118,6 +1130,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 84270445628593848, guid: bad601d82110acd419eee2cded6cc373, type: 3}
+      propertyPath: MaxStep
+      value: 500
+      objectReference: {fileID: 0}
     - target: {fileID: 84270445628593848, guid: bad601d82110acd419eee2cded6cc373, type: 3}
       propertyPath: m_Enabled
       value: 1

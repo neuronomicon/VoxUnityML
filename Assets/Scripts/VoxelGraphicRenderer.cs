@@ -95,7 +95,7 @@ public class VoxelGraphicRenderer : MonoBehaviour
         };
 
         transform.localScale = new Vector3(10f, 10f, 10f);
-        Bounds hugeBounds = new Bounds(Vector3.zero, new Vector3(100000f, 100000f, 100000f));
+        Bounds hugeBounds = new Bounds(Vector3.zero, new Vector3(1000f, 1000f, 1000f));
 
 
         MeshUpdateFlags flags = MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices 
@@ -103,7 +103,7 @@ public class VoxelGraphicRenderer : MonoBehaviour
 
         // 삼각형 메쉬 설정
         mesh = new Mesh { bounds = hugeBounds };
-        mesh.MarkDynamic();
+        //mesh.MarkDynamic();
         GetComponent<MeshFilter>().mesh = mesh;
 
         mesh.SetVertexBufferParams(maxVertexCapacity, vertexLayout);
@@ -198,7 +198,10 @@ public class VoxelGraphicRenderer : MonoBehaviour
             // 10만 개짜리 쓰레기 메모리 복사를 시도하지 않아 누수가 완벽히 멈춥니다.
             //NativeSlice<VtxDxAll> triSlice = new NativeSlice<VtxDxAll>(persistentTriangles, 0, triCount);
 
-            mesh.SetVertexBufferData(persistentTriangles, 0, 0, triCount, 0, flags);
+            var triSub = persistentTriangles.GetSubArray(0, triCount);
+            mesh.SetVertexBufferData(triSub, 0, 0, triCount, 0, flags);
+
+            //mesh.SetVertexBufferData(persistentTriangles, 0, 0, triCount, 0, flags);
             mesh.SetSubMesh(0, new SubMeshDescriptor(0, triCount, MeshTopology.Triangles), flags);
         }
         else if (triCount > maxVertexCapacity)
@@ -221,7 +224,10 @@ public class VoxelGraphicRenderer : MonoBehaviour
             // 🌟 라인 데이터도 Slice로 자릅니다.
             //NativeSlice<VtxDxAll> lineSlice = new NativeSlice<VtxDxAll>(persistentLines, 0, lineCount);
 
-            lineMesh.SetVertexBufferData(persistentLines, 0, 0, lineCount, 0, flags);
+            var lineSub = persistentLines.GetSubArray(0, lineCount);
+            lineMesh.SetVertexBufferData(lineSub, 0, 0, lineCount, 0, flags);
+
+            //lineMesh.SetVertexBufferData(persistentLines, 0, 0, lineCount, 0, flags);
             lineMesh.SetSubMesh(0, new SubMeshDescriptor(0, lineCount, MeshTopology.Lines), flags);
         }
         else if (lineCount > maxLineVertexCapacity)

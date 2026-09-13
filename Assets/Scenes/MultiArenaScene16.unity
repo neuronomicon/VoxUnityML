@@ -879,8 +879,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::VoxelRLManager
   actionSizePerRobot: 66
-  stepsPerSimulationCycle: 125
-  customDecisionPeriod: 4
+  stepsPerSimulationCycle: 20
+  customDecisionPeriod: 1
   numRlRobots: 0
   currentDecisionStep: 0
 --- !u!1 &410087039

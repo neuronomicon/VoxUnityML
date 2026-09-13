@@ -29,7 +29,7 @@ Transform:
   m_GameObject: {fileID: 1638879998126347887}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0.082, y: 0.273, z: 1.597}
+  m_LocalPosition: {x: 0.083, y: 0.273, z: 1.597}
   m_LocalScale: {x: 0.5027674, y: 0.5027674, z: 0.5027674}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -883,9 +883,11 @@ MonoBehaviour:
   agentParameters:
     maxStep: 0
   hasUpgradedFromAgentParameters: 1
-  MaxStep: 40
+  MaxStep: 500
   robotIdx: 0
   rlManager: {fileID: 0}
+  BufferIndex: -1
+  logEpisodeProgress: 0
   taskProfile: {fileID: 11400000, guid: b23e67c1e0b9d4c4f9939d0b8bb69fdb, type: 2}
   runtimeState:
     rid: 5704147066008371263
@@ -897,7 +899,6 @@ MonoBehaviour:
       data:
         targetTransform: {fileID: 8923717247582874060}
         previousDistance: 0
-        currentVoxelUpVector: {x: 0, y: 1, z: 0}
         lastCheckedPos: {x: 0, y: 0, z: 0}
         freezeCount: 0
 --- !u!114 &3599125169949134897
@@ -913,12 +914,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Unity.ML-Agents::Unity.MLAgents.Policies.BehaviorParameters
   m_BrainParameters:
-    VectorObservationSize: 1184
+    VectorObservationSize: 240
     NumStackedVectorObservations: 1
     m_ActionSpec:
-      m_NumContinuousActions: 66
+      m_NumContinuousActions: 33
       BranchSizes: 
-    VectorActionSize: 42000000
+    VectorActionSize: 21000000
     VectorActionDescriptions: []
     VectorActionSpaceType: 1
     hasUpgradedBrainParametersWithActionSpec: 1

@@ -1,26 +1,48 @@
 /*
  * ==============================================================================
  * Copyright (c) 2026 [Y.S.Shim(NeuronomicoN)]. All rights reserved.
- * 
+ *
  * Project      : [Voxelyze-Unity-MLAgents]
  * File         : [AutoBuilder.cs]
  * Author       : [Y.S.Shim]
  * Date Created : 2026-08-15
- * 
- * [WARNING] 
- * The code in this file may not be copied, modified, distributed, or used for 
- * commercial purposes without prior authorization. Plagiarism or intentional 
+ * Revised      : 2026-09-14  (build-report check / clean output / state restore)
+ *
+ * [WARNING]
+ * The code in this file may not be copied, modified, distributed, or used for
+ * commercial purposes without prior authorization. Plagiarism or intentional
  * removal of copyright notices may result in legal consequences.
  * ==============================================================================
+ *
+ * 선택한 씬 하나를 Graphic(Player) / Server 두 모드로 연속 빌드합니다.
+ * 모든 빌드 설정은 현재 전역 설정을 그대로 사용합니다.
+ *   - Player Settings        : Project Settings > Player
+ *   - Development Build 등   : Build Profiles(또는 Build Settings) 창의 체크박스
+ *   - 씬 목록                : 이 창에서 고른 씬 1개만 빌드
  */
 
-using UnityEngine;
-using UnityEditor;
-using System.IO;
 using System.Collections.Generic;
+using System.IO;
+using UnityEditor;
+using UnityEditor.Build.Reporting;
+using UnityEngine;
 
 public class AutoBuilder : EditorWindow
 {
+    // ─────────────────────────────────────────────────────────────
+    // 상수
+    // ─────────────────────────────────────────────────────────────
+    private const string OUTPUT_ROOT_NAME = "VoxUnityML_Auto_Builds";   // 삭제 안전장치에 사용
+    private const string GRAPHIC_DIR = "GraphicMode";
+    private const string SERVER_DIR = "ServerMode";
+    private const string GRAPHIC_EXE = "VoxelSim_Graphics.exe";
+    private const string SERVER_EXE = "VoxelSim_Server.exe";
+
+    private const string PREF_SCENE = "VoxUnityML.AutoBuilder.SceneIndex";
+
+    // ─────────────────────────────────────────────────────────────
+    // 상태
+    // ─────────────────────────────────────────────────────────────
     private string[] scenePaths;
     private string[] sceneNames;
     private int selectedSceneIndex = 0;
@@ -34,12 +56,22 @@ public class AutoBuilder : EditorWindow
     private void OnEnable()
     {
         RefreshScenes();
+        selectedSceneIndex = EditorPrefs.GetInt(PREF_SCENE, 0);
+        if (scenePaths != null && selectedSceneIndex >= scenePaths.Length) selectedSceneIndex = 0;
     }
 
+    private void OnDisable()
+    {
+        EditorPrefs.SetInt(PREF_SCENE, selectedSceneIndex);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // 씬 목록
+    // ─────────────────────────────────────────────────────────────
     private void RefreshScenes()
     {
-        List<string> paths = new List<string>();
-        List<string> names = new List<string>();
+        var paths = new List<string>();
+        var names = new List<string>();
 
         foreach (var scene in EditorBuildSettings.scenes)
         {
@@ -52,8 +84,13 @@ public class AutoBuilder : EditorWindow
 
         scenePaths = paths.ToArray();
         sceneNames = names.ToArray();
+
+        if (selectedSceneIndex >= scenePaths.Length) selectedSceneIndex = 0;
     }
 
+    // ─────────────────────────────────────────────────────────────
+    // GUI
+    // ─────────────────────────────────────────────────────────────
     private void OnGUI()
     {
         GUILayout.Label("Select the training scene to build", EditorStyles.boldLabel);
@@ -61,12 +98,31 @@ public class AutoBuilder : EditorWindow
 
         if (sceneNames == null || sceneNames.Length == 0)
         {
-            EditorGUILayout.HelpBox("No scenes registered in Build Settings. Please drag and drop scenes into the [File -> Build Settings] window.", MessageType.Warning);
+            EditorGUILayout.HelpBox(
+                "Build Settings 에 등록된 씬이 없습니다.\n" +
+                "File > Build Profiles (또는 Build Settings) 의 Scene List 에 씬을 추가하세요.",
+                MessageType.Warning);
+
             if (GUILayout.Button("Refresh")) RefreshScenes();
             return;
         }
 
-        selectedSceneIndex = EditorGUILayout.Popup("Target Scene", selectedSceneIndex, sceneNames);
+        using (new EditorGUILayout.HorizontalScope())
+        {
+            selectedSceneIndex = EditorGUILayout.Popup("Target Scene", selectedSceneIndex, sceneNames);
+            if (GUILayout.Button("↻", GUILayout.Width(24))) RefreshScenes();
+        }
+
+        EditorGUILayout.Space();
+
+        // 현재 전역 설정을 그대로 쓴다는 것을 명시적으로 보여줌
+        EditorGUILayout.HelpBox(
+            "현재 전역 설정으로 빌드합니다.\n" +
+            $"  · Development Build : {(EditorUserBuildSettings.development ? "ON" : "OFF")}\n" +
+            $"  · Run In Background : {(PlayerSettings.runInBackground ? "ON" : "OFF (훈련 중 창이 비활성화되면 멈춥니다)")}\n" +
+            "  · 그 외 Player Settings 는 Project Settings > Player 값 사용\n\n" +
+            "출력 폴더는 빌드 전에 자동으로 비웁니다.",
+            PlayerSettings.runInBackground ? MessageType.Info : MessageType.Warning);
 
         EditorGUILayout.Space();
 
@@ -76,102 +132,164 @@ public class AutoBuilder : EditorWindow
         }
     }
 
+    // ─────────────────────────────────────────────────────────────
+    // 빌드 오케스트레이션
+    // ─────────────────────────────────────────────────────────────
     private void BuildSelectedScene(string scenePath, string sceneName)
     {
-        string basePath = Path.GetFullPath(Application.dataPath + "/../../VoxUnityML_Auto_Builds/" + sceneName);
+        EditorPrefs.SetInt(PREF_SCENE, selectedSceneIndex);
 
-        if (!Directory.Exists(basePath)) Directory.CreateDirectory(basePath);
+        string basePath = Path.GetFullPath(
+            Path.Combine(Application.dataPath, "..", "..", OUTPUT_ROOT_NAME, sceneName));
 
-        string[] scenesToBuild = new string[] { scenePath };
-        Debug.Log($"🚀 [AutoBuilder] Starting dual build for scene '{sceneName}'...");
+        // Build Profiles / Build Settings 창의 체크박스를 그대로 반영
+        BuildOptions opts = BuildOptions.None;
+        if (EditorUserBuildSettings.development) opts |= BuildOptions.Development;
+        if (EditorUserBuildSettings.allowDebugging) opts |= BuildOptions.AllowDebugging;
+        if (EditorUserBuildSettings.connectProfiler) opts |= BuildOptions.ConnectWithProfiler;
+        if (EditorUserBuildSettings.buildWithDeepProfilingSupport) opts |= BuildOptions.EnableDeepProfilingSupport;
+        if (EditorUserBuildSettings.waitForPlayerConnection) opts |= BuildOptions.WaitForPlayerConnection;
 
-        // ==========================================
-        // 1. 그래픽(Window) 모드 빌드
-        // ==========================================
-        string graphicPath = basePath + "/GraphicMode/VoxelSim_Graphics.exe";
-        Debug.Log("⏳ [AutoBuilder] 1/2: Building Graphic (Window) mode...");
-        BuildPipeline.BuildPlayer(new BuildPlayerOptions
+        // 빌드 중 변경되는 에디터 상태 백업
+        var savedSubtarget = EditorUserBuildSettings.standaloneBuildSubtarget;
+
+        Debug.Log($"🚀 [AutoBuilder] '{sceneName}' 듀얼 빌드 시작 (options={opts})");
+
+        try
         {
-            scenes = scenesToBuild,
-            locationPathName = graphicPath,
-            target = BuildTarget.StandaloneWindows64,
-            subtarget = (int)StandaloneBuildSubtarget.Player 
-        });
-        
-        // 🌟 빌드 직후 StreamingAssets 복사
-        CopyStreamingAssetsToBuild(graphicPath);
+            // ── 1/2 그래픽(Window) 모드 ──
+            if (!BuildOne(scenePath, Path.Combine(basePath, GRAPHIC_DIR), GRAPHIC_EXE,
+                          StandaloneBuildSubtarget.Player, opts, "1/2 Graphic"))
+            {
+                return;     // 실패하면 서버 빌드로 넘어가지 않음
+            }
 
-        // ==========================================
-        // 2. 서버(Server) 모드 빌드
-        // ==========================================
-        string serverPath = basePath + "/ServerMode/VoxelSim_Server.exe";
-        Debug.Log("⏳ [AutoBuilder] 2/2: Building Server mode...");
-        BuildPipeline.BuildPlayer(new BuildPlayerOptions
+            // ── 2/2 서버(Server) 모드 ──
+            if (!BuildOne(scenePath, Path.Combine(basePath, SERVER_DIR), SERVER_EXE,
+                          StandaloneBuildSubtarget.Server, opts, "2/2 Server"))
+            {
+                return;
+            }
+
+            Debug.Log($"✅ [AutoBuilder] '{sceneName}' 양쪽 빌드 완료 → {basePath}");
+            EditorUtility.RevealInFinder(basePath);
+        }
+        finally
         {
-            scenes = scenesToBuild,
-            locationPathName = serverPath,
-            target = BuildTarget.StandaloneWindows64,
-            subtarget = (int)StandaloneBuildSubtarget.Server 
-        });
-        
-        // 🌟 빌드 직후 StreamingAssets 복사
-        CopyStreamingAssetsToBuild(serverPath);
-        
-        Debug.Log($"✅ [AutoBuilder] Build and asset copying for scene '{sceneName}' completed!");
-
-
-        // 1. 서브타겟을 Server에서 일반 Player 모드로 확실하게 되돌림
-        EditorUserBuildSettings.standaloneBuildSubtarget = StandaloneBuildSubtarget.Player;        
-        // 2. 플랫폼 타겟 복구
-        UnityEditor.EditorUserBuildSettings.SwitchActiveBuildTarget(UnityEditor.BuildTargetGroup.Standalone, 
-                                                                    UnityEditor.BuildTarget.StandaloneWindows64);
-
-
-        EditorUtility.RevealInFinder(basePath); 
+            // 예외가 나도 에디터가 Server 서브타겟에 갇히지 않도록 반드시 원복
+            EditorUserBuildSettings.standaloneBuildSubtarget = savedSubtarget;
+            Debug.Log($"↩ [AutoBuilder] 서브타겟 원복: {savedSubtarget}");
+        }
     }
 
-    // ==========================================
-    // 📁 에셋 자동 복사 유틸리티 함수들
-    // ==========================================
-    
-    // 대상 실행파일(.exe) 위치를 기준으로 Assets/StreamingAssets 폴더를 생성하고 원본을 복사합니다.
+    // ─────────────────────────────────────────────────────────────
+    // 개별 빌드 1회
+    // ─────────────────────────────────────────────────────────────
+    private bool BuildOne(string scenePath, string outDir, string exeName,
+                          StandaloneBuildSubtarget subtarget,
+                          BuildOptions opts, string label)
+    {
+        // ── 출력 폴더 정리 ──────────────────────────────────────
+        // Unity 는 출력 디렉터리를 청소하지 않습니다. 이전 빌드의 잔여 파일이 남으면
+        // UnityPlayer.dll 과 globalgamemanagers 의 버전이 어긋나
+        // "Failed to load PlayerSettings (internal index #0)" 오류가 발생합니다.
+        if (Directory.Exists(outDir))
+        {
+            if (!IsSafeToDelete(outDir))
+            {
+                Debug.LogError($"❌ [AutoBuilder] 안전하지 않은 삭제 경로라 중단합니다: {outDir}");
+                return false;
+            }
+            Directory.Delete(outDir, true);
+        }
+        Directory.CreateDirectory(outDir);
+
+        string exePath = Path.Combine(outDir, exeName);
+        Debug.Log($"⏳ [AutoBuilder] {label} 빌드 중… → {exePath}");
+
+        // 일부 버전은 EditorUserBuildSettings 쪽도 참조하므로 함께 지정 (finally 에서 원복)
+        EditorUserBuildSettings.standaloneBuildSubtarget = subtarget;
+
+        BuildReport report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+        {
+            scenes = new[] { scenePath },
+            locationPathName = exePath,
+            target = BuildTarget.StandaloneWindows64,
+            subtarget = (int)subtarget,
+            options = opts
+        });
+
+        // ── 결과 확인 ───────────────────────────────────────────
+        var s = report.summary;
+
+        if (s.result != BuildResult.Succeeded)
+        {
+            Debug.LogError(
+                $"❌ [AutoBuilder] {label} 실패 — result={s.result}, " +
+                $"errors={s.totalErrors}, warnings={s.totalWarnings}");
+
+            // 어느 단계에서 터졌는지 남겨둠
+            foreach (var step in report.steps)
+            {
+                foreach (var msg in step.messages)
+                {
+                    if (msg.type == LogType.Error || msg.type == LogType.Exception)
+                        Debug.LogError($"   ↳ [{step.name}] {msg.content}");
+                }
+            }
+            return false;
+        }
+
+        Debug.Log($"✔ [AutoBuilder] {label} 성공 — " +
+                  $"{s.totalSize / (1024 * 1024)} MB, {s.totalTime.TotalSeconds:F1}초, " +
+                  $"warnings={s.totalWarnings}");
+
+        CopyStreamingAssetsToBuild(exePath);
+        return true;
+    }
+
+    // 출력 루트 이름이 경로에 포함될 때만 재귀 삭제를 허용하는 안전장치
+    private static bool IsSafeToDelete(string dir)
+    {
+        string full = Path.GetFullPath(dir).Replace('\\', '/');
+        return full.Contains("/" + OUTPUT_ROOT_NAME + "/");
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // StreamingAssets 복사
+    //   C++ DLL 이 exe 기준 상대경로 "Assets/StreamingAssets/..." 로 읽으므로 유지.
+    //   (Unity 도 <Product>_Data/StreamingAssets 에 자동 복사하지만 그건 별개 경로)
+    // ─────────────────────────────────────────────────────────────
     private void CopyStreamingAssetsToBuild(string exePath)
     {
         string exeDirectory = Path.GetDirectoryName(exePath);
-        string targetStreamingAssetsDir = Path.Combine(exeDirectory, "Assets", "StreamingAssets");
-        string sourceStreamingAssetsDir = Application.streamingAssetsPath;
+        string targetDir = Path.Combine(exeDirectory, "Assets", "StreamingAssets");
+        string sourceDir = Application.streamingAssetsPath;
 
-        if (Directory.Exists(sourceStreamingAssetsDir))
+        if (!Directory.Exists(sourceDir))
         {
-            CopyDirectory(sourceStreamingAssetsDir, targetStreamingAssetsDir);
-            Debug.Log($"📁 Copy completed: {targetStreamingAssetsDir}");
+            Debug.LogWarning("⚠️ [AutoBuilder] StreamingAssets 원본 폴더가 없어 복사를 건너뜁니다.");
+            return;
         }
-        else
-        {
-            Debug.LogWarning("⚠️ Source StreamingAssets folder does not exist. Skipping copy.");
-        }
+
+        CopyDirectory(sourceDir, targetDir);
+        Debug.Log($"📁 [AutoBuilder] StreamingAssets 복사 완료 → {targetDir}");
     }
 
-    // 디렉토리 내부의 모든 파일과 하위 폴더를 재귀적으로 복사합니다 (.meta 파일 제외).
     private void CopyDirectory(string sourceDir, string destDir)
     {
         Directory.CreateDirectory(destDir);
-        DirectoryInfo dirInfo = new DirectoryInfo(sourceDir);
+        var dirInfo = new DirectoryInfo(sourceDir);
 
-        // 파일 복사 (.meta 제외)
         foreach (FileInfo file in dirInfo.GetFiles())
         {
             if (file.Extension.ToLower() == ".meta") continue;
-            
-            string targetFilePath = Path.Combine(destDir, file.Name);
-            file.CopyTo(targetFilePath, true);
+            file.CopyTo(Path.Combine(destDir, file.Name), true);
         }
 
-        // 하위 폴더 복사
         foreach (DirectoryInfo subDir in dirInfo.GetDirectories())
         {
-            string newDestDir = Path.Combine(destDir, subDir.Name);
-            CopyDirectory(subDir.FullName, newDestDir);
+            CopyDirectory(subDir.FullName, Path.Combine(destDir, subDir.Name));
         }
     }
 }
