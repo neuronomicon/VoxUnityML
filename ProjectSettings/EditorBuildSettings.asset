@@ -14,6 +14,12 @@ EditorBuildSettings:
   - enabled: 0
     path: Assets/Scenes/MultiArenaScene16.unity
     guid: 440f467b429fed44ba15efcccbf7bd7e
+  - enabled: 0
+    path: Assets/Scenes/Vox516_Multi_Arena_04.unity
+    guid: 45e1c406a28c5e8418c0c5e973aa78bc
+  - enabled: 0
+    path: Assets/Scenes/Vox516_Single_Arena.unity
+    guid: f7690da524105684da9eb72785fe79a9
   m_configObjects:
     com.unity.dt.app-ui: {fileID: 11400000, guid: 1b1c20d82303e4b5781c3ef50ac1449f, type: 2}
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
