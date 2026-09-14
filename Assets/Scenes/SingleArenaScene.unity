@@ -1112,11 +1112,19 @@ PrefabInstance:
       value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 3599125169949134897, guid: bad601d82110acd419eee2cded6cc373, type: 3}
+      propertyPath: m_Model
+      value: 
+      objectReference: {fileID: 5022602860645237092, guid: e4e5121195636154195a1bba4a2f0be2, type: 3}
+    - target: {fileID: 3599125169949134897, guid: bad601d82110acd419eee2cded6cc373, type: 3}
       propertyPath: m_Enabled
       value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 3599125169949134897, guid: bad601d82110acd419eee2cded6cc373, type: 3}
       propertyPath: m_BehaviorType
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 3599125169949134897, guid: bad601d82110acd419eee2cded6cc373, type: 3}
+      propertyPath: m_InferenceDevice
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 3599125169949134897, guid: bad601d82110acd419eee2cded6cc373, type: 3}
