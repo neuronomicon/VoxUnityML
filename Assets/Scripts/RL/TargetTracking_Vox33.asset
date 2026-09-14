@@ -19,6 +19,6 @@ MonoBehaviour:
   maxSpawnDist: 3.5
   successReward: 5
   failPenalty: -1
-  distanceRewardMultiplier: 2
-  targetReachThreshold: 0.2
+  distanceRewardMultiplier: 20
+  targetReachThreshold: 0.03
   freezeStepLimit: 125

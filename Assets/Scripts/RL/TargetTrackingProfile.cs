@@ -182,9 +182,8 @@ public class TargetTrackingProfile : RobotTaskProfile
             }
         }
 
-        // [3. 추락 및 뒤집힘 체크][cite: 1, 3]
-        //if (!isDone && (currentCoM.y < -2.0f || Vector3.Dot(tState.currentVoxelUpVector, Vector3.up) < 0f)) {
-        if (!isDone && (currentCoM.y < -2.0f || Vector3.Dot(agent.LastUpVector, Vector3.up) < 0f)) {
+        // [3. 추락 및 뒤집힘 체크][cite: 1, 3] c++ 단위로 -0.2 
+        if (!isDone && (currentCoM.y < -0.2f || Vector3.Dot(agent.LastUpVector, Vector3.up) < 0f)) {
             agent.AddReward(failPenalty);
             isDone = true;
         }

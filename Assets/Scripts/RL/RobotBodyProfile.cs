@@ -27,7 +27,7 @@ public class RobotBodyProfile : ScriptableObject
     public bool includeVoxelAngVel = false;
 
     [Tooltip("타겟 거리 정규화 스케일. 스폰 최대거리 정도로")]
-    public float targetDistScale = 5f;
+    public float targetDistScale = 0.5f;    // c++ 단위
 
     // 타겟(3) + CoM속도(3) + 평균각속도(3) + 복셀당 6 또는 9
     public int PerVoxelSize        => includeVoxelAngVel ? 9 : 6;

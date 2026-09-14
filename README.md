@@ -10,9 +10,15 @@
 > **Work in progress.** Released early to document prior research and for demonstration.
 > APIs and training configurations are still moving.
 
-<img width="1791" height="1363" alt="screenshot" src="https://github.com/user-attachments/assets/70b7bc57-b812-4900-8225-18621b9f1f2c" />
+---
+### Unity Editor Working Screen
+<img width="1280" alt="screenshot" src="https://github.com/user-attachments/assets/70b7bc57-b812-4900-8225-18621b9f1f2c" />
 
 ---
+### Training in Action (MP4)
+<a href="https://youtu.be/SqiNJGC3jWg" target="_blank">
+  <img src="https://img.youtube.com/vi/SqiNJGC3jWg/maxresdefault.jpg" alt="VoxUnityML Training" width="640">
+</a>
 
 ## What it does
 
