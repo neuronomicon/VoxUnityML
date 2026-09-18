@@ -24,7 +24,7 @@ public class VoxelRobotInstance : MonoBehaviour
 
     [Header("Multithreading Size")]    
     [Range(1, 64)]
-    public int threadCount = 11;
+    public int threadCount = 1;
 
     [Header("Robot Data Loading")]
     [Tooltip("Checked: Use Unity Builder data / Unchecked: Load internal C++ vox files")]
