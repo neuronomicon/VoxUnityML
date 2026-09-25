@@ -15,21 +15,36 @@ public class RobotBodyProfile : ScriptableObject
     public int rightVoxelA    = 21;
     public int rightVoxelB    = 11;
 
-    [Header("Actuation")]
-    [Tooltip("is_muscle 복셀 수. CPP_Get_Muscle_Count() 로 검증")]
+
+    [Header("Actuation")]    
+    [Tooltip("Number of is_muscle voxels. Verified via CPP_Get_Muscle_Count().")]
     public int muscleCount = 33;
 
     /// 타겟(2) + CoM 속도·각속도(6) + 나머지 복셀 9개씩
     //public int EgocentricStateSize => 2 + 6 + 9 * (expectedVoxelCount - 1);
 
-    [Header("Observation Options")]
-    [Tooltip("복셀별 각속도 포함. 끄면 차원 33% 감소 (A/B 실험용)")]
+    [Header("Observation Options")]    
+    [Tooltip("Include angular velocity per voxel. Disabling reduces dimensions by 33% (for A/B testing).")]
     public bool includeVoxelAngVel = false;
 
-    [Tooltip("타겟 거리 정규화 스케일. 스폰 최대거리 정도로")]
+    [Tooltip("Normalization scale for target distance. Typically set around the maximum spawn distance.")]
     public float targetDistScale = 0.5f;    // c++ 단위
+
+
+    [Header("Observation Voxel Subset")]
+    [Tooltip("Leave empty to observe all voxels. If specified, only these indices are observed (does not affect CoM calculation).")]
+    public int[] observedVoxelIndices;
+
+    public int ObservedVoxelCount =>
+        (observedVoxelIndices != null && observedVoxelIndices.Length > 0)
+            ? observedVoxelIndices.Length
+            : expectedVoxelCount;
+
 
     // 타겟(3) + CoM속도(3) + 평균각속도(3) + 복셀당 6 또는 9
     public int PerVoxelSize        => includeVoxelAngVel ? 9 : 6;
-    public int EgocentricStateSize => 9 + PerVoxelSize * expectedVoxelCount;
+    
+    //public int EgocentricStateSize => 9 + PerVoxelSize * expectedVoxelCount;
+    public int EgocentricStateSize => 9 + PerVoxelSize * ObservedVoxelCount;
+
 }

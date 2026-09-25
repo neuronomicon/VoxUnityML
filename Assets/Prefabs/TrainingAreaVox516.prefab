@@ -890,11 +890,11 @@ MonoBehaviour:
   logEpisodeProgress: 0
   taskProfile: {fileID: 11400000, guid: 0b116dfd2e239744888d98bef4a83ba4, type: 2}
   runtimeState:
-    rid: 5704147066008371263
+    rid: 45811641581568000
   references:
     version: 2
     RefIds:
-    - rid: 5704147066008371263
+    - rid: 45811641581568000
       type: {class: TargetTrackingState, ns: , asm: Assembly-CSharp}
       data:
         targetTransform: {fileID: 8923717247582874060}
@@ -914,7 +914,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Unity.ML-Agents::Unity.MLAgents.Policies.BehaviorParameters
   m_BrainParameters:
-    VectorObservationSize: 3247
+    VectorObservationSize: 199
     NumStackedVectorObservations: 1
     m_ActionSpec:
       m_NumContinuousActions: 142

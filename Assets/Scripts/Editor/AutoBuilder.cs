@@ -97,11 +97,10 @@ public class AutoBuilder : EditorWindow
         EditorGUILayout.Space();
 
         if (sceneNames == null || sceneNames.Length == 0)
-        {
-            EditorGUILayout.HelpBox(
-                "Build Settings 에 등록된 씬이 없습니다.\n" +
-                "File > Build Profiles (또는 Build Settings) 의 Scene List 에 씬을 추가하세요.",
-                MessageType.Warning);
+        {            
+            EditorGUILayout.HelpBox("No scenes are registered in Build Settings.\n" 
+                                    + "Add scenes to the Scene List via File > Build Profiles (or Build Settings).",
+                                        MessageType.Warning);
 
             if (GUILayout.Button("Refresh")) RefreshScenes();
             return;
@@ -116,13 +115,12 @@ public class AutoBuilder : EditorWindow
         EditorGUILayout.Space();
 
         // 현재 전역 설정을 그대로 쓴다는 것을 명시적으로 보여줌
-        EditorGUILayout.HelpBox(
-            "현재 전역 설정으로 빌드합니다.\n" +
-            $"  · Development Build : {(EditorUserBuildSettings.development ? "ON" : "OFF")}\n" +
-            $"  · Run In Background : {(PlayerSettings.runInBackground ? "ON" : "OFF (훈련 중 창이 비활성화되면 멈춥니다)")}\n" +
-            "  · 그 외 Player Settings 는 Project Settings > Player 값 사용\n\n" +
-            "출력 폴더는 빌드 전에 자동으로 비웁니다.",
-            PlayerSettings.runInBackground ? MessageType.Info : MessageType.Warning);
+        EditorGUILayout.HelpBox("Building with current global settings:\n" 
+                                + $"  • Development Build : {(EditorUserBuildSettings.development ? "ON" : "OFF")}\n" 
+                                + $"  • Run In Background : {(PlayerSettings.runInBackground ? "ON" : "OFF (Training will pause if the window loses focus)")}\n" 
+                                +  "  • Other player settings are loaded from Project Settings > Player\n\n" 
+                                +  "The output folder will be cleared automatically before building.",
+                                PlayerSettings.runInBackground ? MessageType.Info : MessageType.Warning);
 
         EditorGUILayout.Space();
 
@@ -153,7 +151,7 @@ public class AutoBuilder : EditorWindow
         // 빌드 중 변경되는 에디터 상태 백업
         var savedSubtarget = EditorUserBuildSettings.standaloneBuildSubtarget;
 
-        Debug.Log($"🚀 [AutoBuilder] '{sceneName}' 듀얼 빌드 시작 (options={opts})");
+        Debug.Log($"🚀 [AutoBuilder] Starting dual build for '{sceneName}' (options={opts})");
 
         try
         {
@@ -170,15 +168,15 @@ public class AutoBuilder : EditorWindow
             {
                 return;
             }
-
-            Debug.Log($"✅ [AutoBuilder] '{sceneName}' 양쪽 빌드 완료 → {basePath}");
+            
+            Debug.Log($"✅ [AutoBuilder] Dual build completed for '{sceneName}' -> {basePath}");
             EditorUtility.RevealInFinder(basePath);
         }
         finally
         {
             // 예외가 나도 에디터가 Server 서브타겟에 갇히지 않도록 반드시 원복
-            EditorUserBuildSettings.standaloneBuildSubtarget = savedSubtarget;
-            Debug.Log($"↩ [AutoBuilder] 서브타겟 원복: {savedSubtarget}");
+            EditorUserBuildSettings.standaloneBuildSubtarget = savedSubtarget;            
+            Debug.Log($"↩ [AutoBuilder] Restored subtarget: {savedSubtarget}");
         }
     }
 
@@ -197,7 +195,7 @@ public class AutoBuilder : EditorWindow
         {
             if (!IsSafeToDelete(outDir))
             {
-                Debug.LogError($"❌ [AutoBuilder] 안전하지 않은 삭제 경로라 중단합니다: {outDir}");
+                Debug.LogError($"❌ [AutoBuilder] Aborted due to unsafe deletion path: {outDir}");
                 return false;
             }
             Directory.Delete(outDir, true);
@@ -205,7 +203,7 @@ public class AutoBuilder : EditorWindow
         Directory.CreateDirectory(outDir);
 
         string exePath = Path.Combine(outDir, exeName);
-        Debug.Log($"⏳ [AutoBuilder] {label} 빌드 중… → {exePath}");
+        Debug.Log($"⏳ [AutoBuilder] Building {label}... -> {exePath}");
 
         // 일부 버전은 EditorUserBuildSettings 쪽도 참조하므로 함께 지정 (finally 에서 원복)
         EditorUserBuildSettings.standaloneBuildSubtarget = subtarget;
@@ -225,7 +223,7 @@ public class AutoBuilder : EditorWindow
         if (s.result != BuildResult.Succeeded)
         {
             Debug.LogError(
-                $"❌ [AutoBuilder] {label} 실패 — result={s.result}, " +
+                $"❌ [AutoBuilder] {label} Failed — result={s.result}, " +
                 $"errors={s.totalErrors}, warnings={s.totalWarnings}");
 
             // 어느 단계에서 터졌는지 남겨둠
@@ -240,8 +238,8 @@ public class AutoBuilder : EditorWindow
             return false;
         }
 
-        Debug.Log($"✔ [AutoBuilder] {label} 성공 — " +
-                  $"{s.totalSize / (1024 * 1024)} MB, {s.totalTime.TotalSeconds:F1}초, " +
+        Debug.Log($"✔ [AutoBuilder] {label} Succeeded — " +
+                  $"{s.totalSize / (1024 * 1024)} MB, {s.totalTime.TotalSeconds:F1}sec, " +
                   $"warnings={s.totalWarnings}");
 
         CopyStreamingAssetsToBuild(exePath);
@@ -268,12 +266,12 @@ public class AutoBuilder : EditorWindow
 
         if (!Directory.Exists(sourceDir))
         {
-            Debug.LogWarning("⚠️ [AutoBuilder] StreamingAssets 원본 폴더가 없어 복사를 건너뜁니다.");
+            Debug.LogWarning("⚠️ [AutoBuilder] StreamingAssets source folder does not exist, skipping copy.");
             return;
         }
 
         CopyDirectory(sourceDir, targetDir);
-        Debug.Log($"📁 [AutoBuilder] StreamingAssets 복사 완료 → {targetDir}");
+        Debug.Log($"📁 [AutoBuilder] StreamingAssets copy completed → {targetDir}");
     }
 
     private void CopyDirectory(string sourceDir, string destDir)

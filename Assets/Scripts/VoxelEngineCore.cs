@@ -60,7 +60,7 @@ public class VoxelEngineCore : MonoBehaviour
     //[ReadOnly] public string dllFolderPath = "C:/Z_SHIM/PROG_MAJOR/PROJECT/NeuronomicoN_VS2022/ProjectDLL";
     [ReadOnly] public string dllFolderPath = "C:/Z_SHIM";
 
-    [Tooltip("현재 사용 중인 DLL 파일입니다. (VoxelDllConfig.cs 에서 변경)")]
+    [Tooltip("Currently loaded DLL file. (Change in VoxelDllConfig.cs)")]
     [ReadOnly] public string activeDllName;
 
 
@@ -120,8 +120,16 @@ public class VoxelEngineCore : MonoBehaviour
 
     void Awake()
     {
+        // [2026-09-21 PATCH]
+        //   vSync 가 켜져 있으면 targetFrameRate 가 무시되고 모니터 주사율에 묶인다.
+        //   머신마다 시뮬 배속이 달라지므로 어떤 모드에서도 0 으로 고정한다.
         QualitySettings.vSyncCount = 0;
-        Application.targetFrameRate = 60;
+
+        // 여기서는 일단 풀어 둔다. 실제 캡은 Start() 의 ApplyFrameRatePolicy() 에서
+        // (헤드리스 여부 / 파이썬 연결 여부를 확인한 뒤) 결정한다.
+        Application.targetFrameRate = -1;
+
+
                 
         // 디버그 로그(일반 메시지) 출력 시 스택 트레이스(호출 경로)를 표시하지 않음
         Application.SetStackTraceLogType(LogType.Log, StackTraceLogType.None);        
@@ -215,13 +223,18 @@ public class VoxelEngineCore : MonoBehaviour
         // R10: C++ 워커 스레드가 시작되기 전에 headless 플래그부터 확정
         SetSimulationPlayState(0);
 
-    #if UNITY_SERVER
-        Set_Headless_Mode(1);
-        Debug.Log("[VoxelEngineCore] Headless: Turn OFF C++ Pack_Render_Data()");
-    #else
-        Set_Headless_Mode(0);
-        Debug.Log("[VoxelEngineCore] Graphics: Turn ON C++ Pack_Render_Data()");
-    #endif
+
+        // [2026-09-21 PATCH] 헤드리스 판정을 런타임으로.
+        //   UNITY_SERVER 는 Dedicated Server 빌드 타겟에서만 정의된다.
+        //   ML-Agents 의 no_graphics:true 는 일반 빌드를 -batchmode -nographics 로
+        //   실행할 뿐이므로, 컴파일 심볼만 보면 화면 없이 도는데도 렌더 패킹을 계속한다.
+        bool isHeadless = IsHeadlessRuntime();
+        Set_Headless_Mode(isHeadless ? 1 : 0);
+        Debug.Log(isHeadless
+            ? "[VoxelEngineCore] Headless detected: C++ Pack_Render_Data() OFF"
+            : "[VoxelEngineCore] Graphics detected: C++ Pack_Render_Data() ON");
+
+
 
         // R7: bool → int (Win32 BOOL 4바이트 vs MSVC bool 1바이트 불일치 제거)
         Init_Voxel_Unity(num_robots, threadArrayHandle.AddrOfPinnedObject(),
@@ -250,6 +263,67 @@ public class VoxelEngineCore : MonoBehaviour
 
     
 
+    }
+
+
+    // [2026-09-21 PATCH]
+    public static bool IsHeadlessRuntime()
+    {
+    #if UNITY_SERVER
+        return true;
+    #else
+        // -batchmode / -nographics 로 실행된 일반 빌드도 잡아낸다.
+        return Application.isBatchMode
+            || SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null;
+    #endif
+    }
+
+
+    [Header("Frame Rate Policy")]
+    [Tooltip("파이썬 없이 추론을 눈으로 볼 때의 fps. 1000 / (stepsPerSimulationCycle x 1ms) 이 실시간.")]
+    public int inferenceWatchFps = 50;
+    [Tooltip("is_ml_agent = false 자유 주행에서의 렌더 fps. 물리 속도와 무관하므로 캡은 공짜.")]
+    public int freeRunRenderFps = 60;
+
+    public void ApplyFrameRatePolicy()
+    {
+        QualitySettings.vSyncCount = 0;
+
+        bool headless = IsHeadlessRuntime();
+        bool python   = is_ml_agent
+                        && Academy.IsInitialized
+                        && Academy.Instance.IsCommunicatorOn;
+
+        int fps;
+
+        if (python)
+        {
+            // [A][B] 훈련/통신 추론.
+            //   ML 모드에서는 1 프레임 = 1 결정 사이클이므로 캡 = 훈련 속도 캡.
+            //   yaml 의 target_frame_rate:-1 과 같은 값을 쓴다(충돌 없음).
+            fps = -1;
+        }
+        else if (headless)
+        {
+            // [D][F] 화면이 없으므로 캡할 이유가 없다.
+            fps = -1;
+        }
+        else if (is_ml_agent)
+        {
+            // [C] 파이썬 없이 ONNX 추론을 눈으로 보는 경우. 여기만 실시간 캡이 의미 있다.
+            fps = inferenceWatchFps;
+        }
+        else
+        {
+            // [E] 자유 주행. 물리는 C++ 워커가 Unity 와 무관하게 자유 주행하므로
+            //     여기서의 캡은 물리 속도에 영향이 없다. 렌더/GPU 만 아낀다.
+            fps = freeRunRenderFps;
+        }
+
+        Application.targetFrameRate = fps;
+
+        Debug.Log($"[VoxelEngineCore] FrameRate policy -> targetFrameRate={fps} " +
+                  $"(ml={is_ml_agent}, python={python}, headless={headless})");
     }
 
 
@@ -304,22 +378,9 @@ public class VoxelEngineCore : MonoBehaviour
 
     void Start() // 만약 이미 Start()나 Awake()가 있다면 그 안의 맨 윗부분에 아래 코드를 추가하세요.
     {
+        ApplyFrameRatePolicy();
 
-        // [임시 누수 테스트] Global Volume 비활성화
-        //var vol = FindAnyObjectByType<UnityEngine.Rendering.Volume>();
-        //if (vol != null)
-        //{
-        //    vol.gameObject.SetActive(false);
-        //    Debug.LogWarning("[TEST] Global Volume DISABLED for leak test");
-        //}
-
-        // Camera 의 UniversalAdditionalCameraData 에서 
-        // Anti-Aliasing 을 TAA → FXAA 또는 없음으로 변경
-        //var camData = Camera.main.GetComponent<UniversalAdditionalCameraData>();
-        //camData.antialiasing = AntialiasingMode.None; // TAA 제거
-
-        //Camera.main.enabled = false;
-        //Debug.LogWarning("[TEST] Camera DISABLED");
+        
 
 
         // 1. 씬 전체에서 "GO/STOP" 이라는 이름을 가진 오브젝트를 찾습니다.

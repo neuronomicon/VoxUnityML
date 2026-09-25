@@ -180,6 +180,10 @@ PrefabInstance:
       value: TrainingAreaVox_00
       objectReference: {fileID: 0}
     - target: {fileID: 3599125169949134897, guid: bad601d82110acd419eee2cded6cc373, type: 3}
+      propertyPath: m_Model
+      value: 
+      objectReference: {fileID: 0}
+    - target: {fileID: 3599125169949134897, guid: bad601d82110acd419eee2cded6cc373, type: 3}
       propertyPath: m_Enabled
       value: 1
       objectReference: {fileID: 0}
@@ -643,6 +647,10 @@ PrefabInstance:
       value: TrainingAreaVox_01
       objectReference: {fileID: 0}
     - target: {fileID: 3599125169949134897, guid: bad601d82110acd419eee2cded6cc373, type: 3}
+      propertyPath: m_Model
+      value: 
+      objectReference: {fileID: 0}
+    - target: {fileID: 3599125169949134897, guid: bad601d82110acd419eee2cded6cc373, type: 3}
       propertyPath: m_Enabled
       value: 1
       objectReference: {fileID: 0}
@@ -762,6 +770,8 @@ MonoBehaviour:
   voxelParseKind: 0
   maxNumOscillators: 2
   robotBuilder: {fileID: 400405856}
+  inferenceWatchFps: 50
+  freeRunRenderFps: 60
 --- !u!114 &400405856
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1114,6 +1124,10 @@ PrefabInstance:
       value: TrainingAreaVox_03
       objectReference: {fileID: 0}
     - target: {fileID: 3599125169949134897, guid: bad601d82110acd419eee2cded6cc373, type: 3}
+      propertyPath: m_Model
+      value: 
+      objectReference: {fileID: 0}
+    - target: {fileID: 3599125169949134897, guid: bad601d82110acd419eee2cded6cc373, type: 3}
       propertyPath: m_Enabled
       value: 1
       objectReference: {fileID: 0}
@@ -1181,6 +1195,10 @@ PrefabInstance:
     - target: {fileID: 1654495086318525827, guid: bad601d82110acd419eee2cded6cc373, type: 3}
       propertyPath: m_Name
       value: TrainingAreaVox_02
+      objectReference: {fileID: 0}
+    - target: {fileID: 3599125169949134897, guid: bad601d82110acd419eee2cded6cc373, type: 3}
+      propertyPath: m_Model
+      value: 
       objectReference: {fileID: 0}
     - target: {fileID: 3599125169949134897, guid: bad601d82110acd419eee2cded6cc373, type: 3}
       propertyPath: m_Enabled

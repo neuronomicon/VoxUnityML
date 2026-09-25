@@ -624,6 +624,8 @@ MonoBehaviour:
   voxelParseKind: 0
   maxNumOscillators: 2
   robotBuilder: {fileID: 400405856}
+  inferenceWatchFps: 50
+  freeRunRenderFps: 60
 --- !u!114 &400405856
 MonoBehaviour:
   m_ObjectHideFlags: 0

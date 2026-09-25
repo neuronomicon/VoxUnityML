@@ -139,8 +139,38 @@ public class VoxelRLManager : MonoBehaviour
 
                 int sz = activeAgents[i].taskProfile.GetActionSize();
                 if (sz != actionSizePerRobot)
-                    Debug.LogError($"[VoxelRLManager] Robot {i} actionSize={sz} != {actionSizePerRobot}. " +
-                                $"C++ 배치 API 는 단일 크기만 받습니다.");
+                {                    
+                    Debug.LogError($"[VoxelRLManager] Robot {i} actionSize={sz} != {actionSizePerRobot}. "
+                                    + $"C++ batch API requires a uniform size.");
+                }
+
+                
+                // ── 관측 서브셋 검증 ──────────────────────────────────
+                var tp = activeAgents[i].taskProfile;
+                var b  = tp.body;
+                var oi = b.observedVoxelIndices;
+                if (oi != null && oi.Length > 0)
+                {
+                    int bad = 0, dup = 0;
+                    var seen = new System.Collections.Generic.HashSet<int>();
+                    foreach (int v in oi)
+                    {
+                        if (v < 0 || v >= b.expectedVoxelCount) bad++;
+                        if (!seen.Add(v)) dup++;
+                    }
+                    
+                    Debug.Log($"[VoxelRLManager] Robot {i} ({activeAgents[i].name})  body={b.name}  "
+                            + $"{oi.Length} subsets -> obs={tp.GetObservationSize()}, act={tp.GetActionSize()}"
+                            + (bad > 0 ? $"   ⚠ Out of range: {bad}" : "")
+                            + (dup > 0 ? $"   ⚠ Duplicates: {dup}"   : ""));
+                }
+                else
+                {
+                    Debug.Log($"[VoxelRLManager] Robot {i} ({activeAgents[i].name})  body={b.name}  "
+                            + $"전체 {b.expectedVoxelCount}복셀 → obs={tp.GetObservationSize()}, act={tp.GetActionSize()}");
+                }
+                // ──────────────────────────────────────────────────
+
             }
 
             Debug.Log($"[VoxelRLManager] {numRlRobots} robots, actionSize={actionSizePerRobot}");

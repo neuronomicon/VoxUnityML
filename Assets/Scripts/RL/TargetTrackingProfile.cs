@@ -15,10 +15,9 @@ public class TargetTrackingState : RobotTaskState
     public Transform targetTransform; // 🌟 씬 오브젝트 연결 슬롯이 이쪽으로 이동!
 
     [Header("🎯 Task Specific Realtime Variables")]
-    public float previousDistance;
-    //public Vector3 currentVoxelUpVector = Vector3.up;
-    public Vector3 lastCheckedPos = Vector3.zero;
-    public int freezeCount = 0;
+    [ReadOnly] public float previousDistance;    
+    [ReadOnly] public Vector3 lastCheckedPos = Vector3.zero;
+    [ReadOnly] public int freezeCount = 0;
     
     // 0.5초 동안 4단계 궤적을 저장할 내부 버퍼 (4단계 x 296개 값)[cite: 1, 3]
     //public float[,] observationBuffer = new float[4, 296];
@@ -53,8 +52,8 @@ public class TargetTrackingProfile : RobotTaskProfile
     public int rightVoxelB = 11; 
     */
     
-    [Header("🧊 Freeze Detection")]
-    [Tooltip("연속 정지 판정 스텝 수. 50Hz 기준 125 = 2.5초")]
+    [Header("🧊 Freeze Detection")]    
+    [Tooltip("Consecutive steps to trigger stationary detection. (125 = 2.5s @ 50Hz)")]
     public int freezeStepLimit = 125;
     
     
@@ -73,6 +72,12 @@ public class TargetTrackingProfile : RobotTaskProfile
             tState.observationBuffer = new float[4, agent.StateBufferSize];
         }
         */
+        if (tState.targetTransform == null)
+        {
+            Debug.LogError($"[{agent.name}] targetTransform 이 비어 있습니다! " +
+                           $"거리 보상과 도달 판정이 전혀 동작하지 않고 생존 페널티만 쌓입니다. " +
+                           $"Agent 의 Runtime State > Target Object 슬롯을 확인하세요.");
+        }
 
         // 목표물(Target)을 로봇 근처 일정 범위 내 랜덤 재배치[cite: 1, 3]
         if (tState.targetTransform != null)
@@ -195,7 +200,10 @@ public class TargetTrackingProfile : RobotTaskProfile
         }
         else
         {
-            if (agent.MaxStep > 0) agent.AddReward(-1.0f / agent.MaxStep); 
+            //if (agent.MaxStep > 0) agent.AddReward(-1.0f / agent.MaxStep); 
+
+            float timePenaltyScale = 0.2f;
+            if (agent.MaxStep > 0) agent.AddReward(-timePenaltyScale / agent.MaxStep); 
             else                   agent.AddReward(-0.001f);
         }
     }

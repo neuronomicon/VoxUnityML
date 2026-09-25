@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d306081f4f05a694bafa4a4d3ec4c0a3, type: 3}
   m_Name: TargetTracking_Vox516
   m_EditorClassIdentifier: Assembly-CSharp::TargetTrackingProfile
-  body: {fileID: 11400000, guid: d82ed31ac09bb194cb453d51f0ab5f3c, type: 2}
+  body: {fileID: 11400000, guid: 9684e7a48172aad4495b95dfb6a3a25f, type: 2}
   behaviorName: VoxBot516
   maxStep: 500
   minSpawnDist: 3.2

@@ -138,7 +138,7 @@ public class VoxelPhysicsInfo : MonoBehaviour
     // 🌟 [R6/Plan A] 링크 벌크 버퍼는 폐지되었습니다.
     //    lastLinkStatePtr 는 항상 IntPtr.Zero 이며, 외부 코드 호환을 위해서만 남아 있습니다.
     //    이 포인터를 역참조하는 코드가 있다면 Get_Link_Stress_Between() 으로 교체하세요.
-    [Obsolete("Plan A 이후 항상 IntPtr.Zero 입니다. GetLinkStress(a, b) 를 사용하세요.")]
+    [Obsolete("Always returns IntPtr.Zero since Plan A. Use GetLinkStress(a, b) instead.")]
     public IntPtr lastLinkStatePtr = IntPtr.Zero;
 
     // 링크 개수. 에디터에서만 갱신됩니다(빌드에서는 뮤텍스 락을 피하기 위해 조회하지 않음).
@@ -224,7 +224,7 @@ public class VoxelPhysicsInfo : MonoBehaviour
         if (count <= 0) return 0;
         if (count > queries.Length || count > outStresses.Length)
         {
-            Debug.LogError($"[VoxelPhysicsInfo] GetLinkStressBatch: count({count})가 배열 크기를 초과했습니다. " +
+            Debug.LogError($"[VoxelPhysicsInfo] GetLinkStressBatch: count({count}) exceeds array sizes. " +
                            $"queries={queries.Length}, outStresses={outStresses.Length}");
             return 0;
         }

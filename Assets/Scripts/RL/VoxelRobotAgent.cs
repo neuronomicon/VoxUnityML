@@ -93,10 +93,33 @@ public class VoxelRobotAgent : Agent // ML-Agents의 Agent 클래스 상속[cite
             StateBufferSize = taskProfile.body.EgocentricStateSize;
             egocentricStateBuffer = new float[StateBufferSize];
             actionBuffer = new float[Mathf.Max(1, taskProfile.GetActionSize())];
+
+            // ── 관측 서브셋 검증 ─────────────────────────────────────
+            var b  = taskProfile.body;
+            var oi = b.observedVoxelIndices;
+            if (oi != null && oi.Length > 0)
+            {
+                int bad = 0, dup = 0;
+                var seen = new System.Collections.Generic.HashSet<int>();
+                foreach (int v in oi)
+                {
+                    if (v < 0 || v >= b.expectedVoxelCount) bad++;
+                    if (!seen.Add(v)) dup++;
+                }
+                
+                Debug.Log($"[VoxelRobotAgent] [{name}] body={b.name}  {oi.Length} obs subsets -> obs={taskProfile.GetObservationSize()}, act={taskProfile.GetActionSize()}"
+                        + (bad > 0 ? $"   ⚠ Out of range: {bad}" : "")
+                        + (dup > 0 ? $"   ⚠ Duplicates: {dup}"   : ""));
+            }
+            else
+            {                
+                Debug.Log($"[VoxelRobotAgent] [{name}] body={b.name}  observing all {b.expectedVoxelCount} voxels -> obs={taskProfile.GetObservationSize()}, act={taskProfile.GetActionSize()}");
+            }
+            // ─────────────────────────────────────────────────────
         }
         else
         {
-            Debug.LogError($"[{name}] taskProfile 또는 body 가 비어 있습니다.");
+            Debug.LogError($"[VoxelRobotAgent] [{name}] taskProfile or body is null.");
         }
 
     }
@@ -302,9 +325,17 @@ public class VoxelRobotAgent : Agent // ML-Agents의 Agent 클래스 상속[cite
         egocentricStateBuffer[index++] = Vector3.Dot(comAngVel, localY);
         egocentricStateBuffer[index++] = Vector3.Dot(comAngVel, localZ);
 
-        // ── [9~] 복셀별 CoM 상대 상태 (전체 복셀) ──
-        for (int i = 0; i < N; i++)
+
+        // ── [9~] 복셀별 CoM 상대 상태 (관측 서브셋) ──
+        var obsIdx = body.observedVoxelIndices;
+        bool useSubset = (obsIdx != null && obsIdx.Length > 0);
+        int  M = useSubset ? obsIdx.Length : N;
+        
+        for (int k = 0; k < M; k++)
         {
+            int i = useSubset ? obsIdx[k] : k;
+            if (i < 0 || i >= N) { index += body.PerVoxelSize; continue; }   // 잘못된 인덱스는 0으로
+
             Vector3 relPos = voxels[i].pos - com;
             Vector3 relVel = voxels[i].vel - comVel;
 
