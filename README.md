@@ -17,13 +17,17 @@
 <img width="1350" height="1089" alt="VoxUnityML_Editor_Shot" src="https://github.com/user-attachments/assets/98a6e573-451c-4ea8-bb13-b359860c5cef" />
 
 ---
-### Training in Action (MP4)
+### Training in Action (Click to view)
+&emsp;
 <a href="https://youtu.be/SqiNJGC3jWg" target="_blank">
-  <img width="250" src="https://github.com/user-attachments/assets/c08db34b-7961-457c-b990-27aa587f3063">
-</a>
+  <img width="300" src="https://github.com/user-attachments/assets/c08db34b-7961-457c-b990-27aa587f3063">
+</a> &emsp;&emsp;&emsp;
 <a href="https://youtu.be/SqiNJGC3jWg" target="_blank">
-  <img width="250" src="https://github.com/user-attachments/assets/f59fdcce-14db-432b-b801-082d2bcb4acc">
+  <img width="300" src="https://github.com/user-attachments/assets/f59fdcce-14db-432b-b801-082d2bcb4acc">
 </a>
+<br>
+&emsp;&ensp; 33-voxels 4 Arena (i9-12900k 16C/24T)
+&emsp;&emsp;&ensp; 516-voxels 15 Arena (Threadripper 3990X 64C/128T)
 
 ## What it does
 
