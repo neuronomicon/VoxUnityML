@@ -19,7 +19,10 @@
 ---
 ### Training in Action (MP4)
 <a href="https://youtu.be/SqiNJGC3jWg" target="_blank">
-  <img src="https://img.youtube.com/vi/SqiNJGC3jWg/maxresdefault.jpg" alt="VoxUnityML Training" width="640">
+  <img width="250" src="https://github.com/user-attachments/assets/c08db34b-7961-457c-b990-27aa587f3063">
+</a>
+<a href="https://youtu.be/SqiNJGC3jWg" target="_blank">
+  <img width="250" src="https://github.com/user-attachments/assets/f59fdcce-14db-432b-b801-082d2bcb4acc">
 </a>
 
 ## What it does
