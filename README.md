@@ -4,6 +4,7 @@
 
 ![Unity](https://img.shields.io/badge/Unity-6-000000?logo=unity&logoColor=white)
 ![ML-Agents](https://img.shields.io/badge/ML--Agents-PPO-0088cc)
+![OpenMP](https://img.shields.io/badge/OpenMP-5.0%20%2F%202.0-0f7a4a)
 ![Platform](https://img.shields.io/badge/platform-Windows%20x64-1f5fa8)
 ![Status](https://img.shields.io/badge/status-WIP-c05314)
 
@@ -12,8 +13,8 @@
 
 ---
 ### Unity Editor Working Screen
-<img width="1350" height="1089" alt="VoxUnityML_Editor_Shot" src="https://github.com/user-attachments/assets/98a6e573-451c-4ea8-bb13-b359860c5cef" />
 <!--<img width="1280" alt="screenshot" src="https://github.com/user-attachments/assets/70b7bc57-b812-4900-8225-18621b9f1f2c" />-->
+<img width="1350" height="1089" alt="VoxUnityML_Editor_Shot" src="https://github.com/user-attachments/assets/98a6e573-451c-4ea8-bb13-b359860c5cef" />
 
 ---
 ### Training in Action (MP4)
@@ -38,8 +39,17 @@ The result is a soft-robot RL testbed that scales with core count rather than wi
   and thermal actuation are computed natively.
 - **Nested OpenMP parallelism** — a persistent parallel region parallelises across robots (macro)
   and across voxels within a robot (micro), with no fork-join churn per step.
-- **Processor-group thread pinning** — Windows affinity APIs keep 64+ core HEDT machines
-  (AMD Threadripper class) fully utilised across processor groups.
+- **OpenMP 5.0, with a 2.0 fallback** — the DLL builds against either **libomp** (clang-cl,
+  `_OPENMP 201811`) or **vcomp** (MSVC, `_OPENMP 200203`). A thin compatibility header selects
+  `omp_set_max_active_levels()` or the deprecated `omp_set_nested()` by *OpenMP version* rather than
+  by compiler, so both builds behave identically — and a compile-time guard fails the build when
+  OpenMP is off, which otherwise yields a silently serial DLL.
+- **Physical-core-aware thread allocation** — rather than counting logical threads, the scheduler
+  reads the machine's real topology (physical cores, SMT siblings, Windows processor groups) and
+  hands each robot an **exclusive contiguous block of physical cores**, one thread per core, leaving
+  the SMT siblings free for Unity and Python. Blocks never straddle a processor group, so 64+ core
+  HEDT machines (AMD Threadripper class) use the whole chip instead of half of it. Robots never
+  share a core, because the macro barrier would propagate one robot's contention to all of them.
 - **Zero-GC data bridge** — vertex and state data cross from C++ to Unity as `IntPtr` and are
   consumed by the Burst compiler directly into mesh buffers. No managed allocation per frame.
 - **Lock-free triple buffering** — rendering reads a completed snapshot while physics writes the
@@ -55,7 +65,8 @@ The result is a soft-robot RL testbed that scales with core count rather than wi
 ## Quick start
 
 ```bash
-# 1. Build the C++ DLL (Visual Studio, x64 Release) and copy it into the Unity project.
+# 1. Build the C++ DLL (Visual Studio x64 — "Release" with MSVC, or "ReleaseCL" with clang-cl)
+#    and copy it into the Unity project.
 
 # 2. Open SingleArenaScene in Unity 6.
 
@@ -66,6 +77,7 @@ mlagents-learn config/VoxBot33.yaml --run-id=VoxBot_01
 The console should report the wiring:
 
 ```
+[VxAff] topology: logical=128  physicalCores=64  groups=2
 [VoxelEngineCore] Total 2 robots indexed sequentially across 1 training areas.
 [VoxelRLManager] 1 robots, actionSize=33
 ```
@@ -149,6 +161,8 @@ cpp/
   Unity_Voxel_RL_Actions_DLL.cpp    actuation modes (direct thermal / legacy CPG)
   Unity_Voxel_FuncDLL.cpp           engine boot, worker thread, OpenMP robot loop
   Voxelyze_Nested.cpp               nested-parallel time step
+  VoxCoreAffinity.h / .cpp          physical-core and processor-group assignment
+  VoxOmpCompat.h                    OpenMP 5.0 / 2.0 compatibility layer
 
 Assets/Scripts/RL/
   RobotBodyProfile.cs               anatomy, muscle count, observation layout
@@ -165,15 +179,33 @@ config/VoxBot33.yaml                PPO hyperparameters and engine settings
 
 ## Scaling
 
-| Scene | Arenas | Simulated robots | Outer threads |
+| Scene | Arenas | Simulated robots | Physical cores |
 |---|---|---|---|
-| `SingleArenaScene` | 1 | 2 | 2 |
-| `MultiArenaScene04` | 4 | 8 | 8 |
-| `MultiArenaScene16` | 16 | 32 | 32 |
+| `SingleArenaScene` | 1 | 2 | 4 |
+| `MultiArenaScene04` | 4 | 8 | 16 |
+| `MultiArenaScene16` | 16 | 32 | 64 |
 
-Each arena holds one RL robot plus one non-learning companion body. Total thread demand is
-*robots × per-robot `threadCount`* — oversubscribing a 64-core machine makes 16 arenas slower
-than 4, so lower `threadCount` as arena count rises.
+Each arena holds one RL robot (`threadCount 3`) plus one non-learning companion body
+(`threadCount 1`). Demand is counted in **physical cores, not logical threads** — a 64-core /
+128-thread machine has a budget of 64, and the spare SMT siblings are the headroom that keeps
+Unity's frame time sane.
+
+```
+C = Σ ceil(threadCount_i)                        cores one arena needs    ( [3,1] → 4 )
+N = floor((groups × cores_per_group − reserved) / C)        arenas that fit
+```
+
+A robot's core block cannot cross a Windows processor group, so keep `C` a **divisor of the
+per-group core count** — 32 on a 64-core machine — and nothing is stranded. `VxAff_MaxRepeats()`
+answers exactly, and the boot log reports `cores used`, `spare` and `skipped` so you can check
+without benchmarking.
+
+Reference configuration on 64 cores / 128 threads: **15 arenas → 30 robots on 60 of 64 cores**,
+4 cores spare for Unity, nothing stranded, nested teams intact. Oversubscribing is what makes 16
+arenas slower than 4 — every robot is joined by the macro barrier, so contention on one propagates
+to all. On a small machine the trade-off inverts: 4 arenas on an 8-core / 16-thread box reports
+`[OVERSUBSCRIBED]` and is nonetheless the throughput optimum there, since 16 threads land one per
+logical CPU with nothing double-booked.
 
 Keep the training YAML identical across scenes when comparing them. `buffer_size` counts total
 agent steps, so the number of policy updates at a given step count is unchanged — which is what
