@@ -22,7 +22,7 @@
 <a href="https://youtu.be/SqiNJGC3jWg" target="_blank">
   <img width="300" src="https://github.com/user-attachments/assets/c08db34b-7961-457c-b990-27aa587f3063">
 </a> &emsp;&emsp;&emsp;
-<a href="https://youtu.be/SqiNJGC3jWg" target="_blank">
+<a href="https://youtu.be/IXZdLQriIfw" target="_blank">
   <img width="300" src="https://github.com/user-attachments/assets/f59fdcce-14db-432b-b801-082d2bcb4acc">
 </a>
 <br>
