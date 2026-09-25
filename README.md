@@ -12,7 +12,8 @@
 
 ---
 ### Unity Editor Working Screen
-<img width="1280" alt="screenshot" src="https://github.com/user-attachments/assets/70b7bc57-b812-4900-8225-18621b9f1f2c" />
+<img width="1350" height="1089" alt="VoxUnityML_Editor_Shot" src="https://github.com/user-attachments/assets/98a6e573-451c-4ea8-bb13-b359860c5cef" />
+<!--<img width="1280" alt="screenshot" src="https://github.com/user-attachments/assets/70b7bc57-b812-4900-8225-18621b9f1f2c" />-->
 
 ---
 ### Training in Action (MP4)
