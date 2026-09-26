@@ -31,13 +31,7 @@
 
 ## What it does
 
-Unity's PhysX cannot simulate soft bodies, so this project runs
-**[Voxelyze](https://github.com/jonhiller/Voxelyze)** — Jon Hiller's 3D voxel physics engine — as
-the physics core and bridges it into Unity ML-Agents. Dozens of independent soft robots train in
-parallel inside a single scene, each with isolated memory in the DLL, while Unity renders at
-60+ FPS without ever blocking on physics.
-
-The result is a soft-robot RL testbed that scales with core count rather than with GPU budget.
+While Unity's built-in physics and surface-based assets excel at visual deformation, they lack the true volumetric, multi-material mechanics (bones/muscles) required for active soft robots. Thus, this project runs **[Voxelyze](https://github.com/jonhiller/Voxelyze)** — Jon Hiller's 3D voxel physics engine — as the dedicated physics core bridged into Unity ML-Agents.Through a custom Zero-Allocation (Zero-GC) architecture, dozens of independent soft robots train in parallel at 1000Hz+ micro-steps. Each operates in isolated DLL memory, allowing Unity to render at 60+ FPS without physics bottlenecks. The result is a true soft-robot RL testbed that scales with CPU core count rather than GPU budget.
 
 ## Highlights
 
