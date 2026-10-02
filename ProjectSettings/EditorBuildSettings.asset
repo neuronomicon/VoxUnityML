@@ -26,6 +26,9 @@ EditorBuildSettings:
   - enabled: 0
     path: Assets/Scenes/Vox516_Multi_Arena_04_20Hz.unity
     guid: 47c7ad4c0617bdd45aac8106109c8fb5
+  - enabled: 0
+    path: Assets/Scenes_Test/Test_Vox516_Single_Arena.unity
+    guid: f7a641929bca2494ab916e67c1671ad4
   m_configObjects:
     com.unity.dt.app-ui: {fileID: 11400000, guid: 1b1c20d82303e4b5781c3ef50ac1449f, type: 2}
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
