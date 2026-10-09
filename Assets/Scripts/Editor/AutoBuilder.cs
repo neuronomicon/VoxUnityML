@@ -114,13 +114,21 @@ public class AutoBuilder : EditorWindow
 
         EditorGUILayout.Space();
 
-        // 현재 전역 설정을 그대로 쓴다는 것을 명시적으로 보여줌
-        EditorGUILayout.HelpBox("Building with current global settings:\n" 
-                                + $"  • Development Build : {(EditorUserBuildSettings.development ? "ON" : "OFF")}\n" 
-                                + $"  • Run In Background : {(PlayerSettings.runInBackground ? "ON" : "OFF (Training will pause if the window loses focus)")}\n" 
-                                +  "  • Other player settings are loaded from Project Settings > Player\n\n" 
+       
+        bool dev = EditorUserBuildSettings.development;
+        string devDetail = dev
+            ? $"ON  (debug={EditorUserBuildSettings.allowDebugging}, " +
+              $"profiler={EditorUserBuildSettings.connectProfiler}, " +
+              $"waitConn={EditorUserBuildSettings.waitForPlayerConnection})"
+            : "OFF  ← benchmark-ready";
+
+        EditorGUILayout.HelpBox("Building with current global settings:\n"
+                                + $"  • Development Build : {devDetail}\n"
+                                + $"  • Run In Background : {(PlayerSettings.runInBackground ? "ON" : "OFF (Training will pause if the window loses focus)")}\n"
+                                +  "  • Other player settings are loaded from Project Settings > Player\n\n"
                                 +  "The output folder will be cleared automatically before building.",
-                                PlayerSettings.runInBackground ? MessageType.Info : MessageType.Warning);
+                                dev ? MessageType.Warning : MessageType.Info);
+
 
         EditorGUILayout.Space();
 
@@ -141,12 +149,20 @@ public class AutoBuilder : EditorWindow
             Path.Combine(Application.dataPath, "..", "..", OUTPUT_ROOT_NAME, sceneName));
 
         // Build Profiles / Build Settings 창의 체크박스를 그대로 반영
+        //  [FIX] AllowDebugging / ConnectWithProfiler 등은 Development 가 켜져 있을 때만
+        //        유효하다. Development 를 끄면 에디터는 하위 체크박스를 회색 처리할 뿐
+        //        EditorUserBuildSettings 값은 그대로 남기므로, 여기서 가두지 않으면
+        //        "Non-development build cannot allow debugging" 예외가 난다.
         BuildOptions opts = BuildOptions.None;
-        if (EditorUserBuildSettings.development) opts |= BuildOptions.Development;
-        if (EditorUserBuildSettings.allowDebugging) opts |= BuildOptions.AllowDebugging;
-        if (EditorUserBuildSettings.connectProfiler) opts |= BuildOptions.ConnectWithProfiler;
-        if (EditorUserBuildSettings.buildWithDeepProfilingSupport) opts |= BuildOptions.EnableDeepProfilingSupport;
-        if (EditorUserBuildSettings.waitForPlayerConnection) opts |= BuildOptions.WaitForPlayerConnection;
+        if (EditorUserBuildSettings.development)
+        {
+            opts |= BuildOptions.Development;
+
+            if (EditorUserBuildSettings.allowDebugging)                 opts |= BuildOptions.AllowDebugging;
+            if (EditorUserBuildSettings.connectProfiler)                opts |= BuildOptions.ConnectWithProfiler;
+            if (EditorUserBuildSettings.buildWithDeepProfilingSupport)  opts |= BuildOptions.EnableDeepProfilingSupport;
+            if (EditorUserBuildSettings.waitForPlayerConnection)        opts |= BuildOptions.WaitForPlayerConnection;
+        }
 
         // 빌드 중 변경되는 에디터 상태 백업
         var savedSubtarget = EditorUserBuildSettings.standaloneBuildSubtarget;

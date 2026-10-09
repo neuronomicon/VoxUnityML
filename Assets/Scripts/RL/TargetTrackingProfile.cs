@@ -213,11 +213,20 @@ public class TargetTrackingProfile : RobotTaskProfile
         var ca = actionsOut.ContinuousActions;
 
         float amp = 0f;
+
+    #if UNITY_SERVER
+        // 서버(헤드리스) 빌드: 키보드가 없다. 벤치마크에서 로봇이 실제로 보행해야
+        // 충돌 리스트 재생성 비용까지 포함된 현실적인 작업량이 측정된다.
+        amp = 1.0f;
+    #else
+
         if (Keyboard.current != null)
         {
             if (Keyboard.current.dKey.isPressed || Keyboard.current.rightArrowKey.isPressed)     amp =  1.0f;
             else if (Keyboard.current.aKey.isPressed || Keyboard.current.leftArrowKey.isPressed) amp = -1.0f;
         }
+
+    #endif
 
         // 근육마다 위상을 어긋나게 -> 진행파가 생겨 실제로 이동/회전함
         float t = Time.time;

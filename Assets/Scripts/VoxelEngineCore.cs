@@ -55,6 +55,10 @@ public class VoxelEngineCore : MonoBehaviour
     [Header("CPPN/CE & Other properties")]    
     public bool is_ml_agent = true;
 
+    [Header("[Benchmark] 확장성 측정 전용")]
+    [Tooltip("확장성 측정 씬에서만 체크한다. 켜져 있을 때만 -robots / VOX_ROBOTS 인자를 반영하여 " +
+             "하이어라키 앞쪽 N개 훈련장만 활성화한다. 다른 씬에서는 반드시 꺼 둘 것.")]
+    public bool allowArenaCountOverride = false; 
     
     
     //[ReadOnly] public string dllFolderPath = "C:/Z_SHIM/PROG_MAJOR/PROJECT/NeuronomicoN_VS2022/ProjectDLL";
@@ -158,6 +162,10 @@ public class VoxelEngineCore : MonoBehaviour
     #if !UNITY_SERVER
         ConnectConsoleOutput();
     #endif
+
+        // ===== [MEASURE 2026-10] 확장성 스윕: 활성 훈련장 수 제한 =====
+        ApplyRobotCountOverride();
+
 
         // ==========================================================
         // 2. 씬 내의 훈련장(총괄: VoxelPhysicsManager)들을 찾아서 인덱스 체계적 발급
@@ -263,6 +271,59 @@ public class VoxelEngineCore : MonoBehaviour
 
     
 
+    }
+
+
+    private void ApplyRobotCountOverride()
+    {
+        // (0) 요청값 수집 — 인자 우선, 없으면 환경변수
+        int want = -1;
+
+        string[] args = System.Environment.GetCommandLineArgs();
+        for (int i = 0; i < args.Length - 1; i++)
+        {
+            if (args[i] == "-robots" && int.TryParse(args[i + 1], out int v)) { want = v; break; }
+        }
+        if (want <= 0)
+        {
+            string env = System.Environment.GetEnvironmentVariable("VOX_ROBOTS");
+            if (!string.IsNullOrEmpty(env) && int.TryParse(env, out int v2)) want = v2;
+        }
+
+        // (1) 이 씬이 측정 씬이 아니면 아무것도 하지 않는다
+        if (!allowArenaCountOverride)
+        {
+            if (want > 0)
+                Debug.LogWarning($"[MEASURE] robots={want} requested, but 'allowArenaCountOverride' is OFF "
+                               + $"in scene '{UnityEngine.SceneManagement.SceneManager.GetActiveScene().name}'. Ignored.");
+            return;
+        }
+
+        if (want <= 0)
+        {
+            Debug.Log("[MEASURE] Override enabled but no -robots / VOX_ROBOTS given. Using scene as-is.");
+            return;
+        }
+
+        // (2) 비활성까지 전부 수집 — 이전 실행에서 꺼진 것도 다시 켤 수 있도록
+        VoxelPhysicsManager[] all = FindObjectsByType<VoxelPhysicsManager>(
+                                        FindObjectsInactive.Include, FindObjectsSortMode.None);
+
+        System.Array.Sort(all, (a, b) =>
+            a.transform.GetSiblingIndex().CompareTo(b.transform.GetSiblingIndex()));
+
+        int on = 0;
+        for (int i = 0; i < all.Length; i++)
+        {
+            bool enable = (i < want);
+            all[i].gameObject.SetActive(enable);
+            if (enable) on++;
+        }
+
+        Debug.Log($"[MEASURE] robots={want} -> {on} / {all.Length} training areas enabled.");
+
+        if (on < want)
+            Debug.LogWarning($"[MEASURE] Scene has only {all.Length} areas, requested {want}.");
     }
 
 
