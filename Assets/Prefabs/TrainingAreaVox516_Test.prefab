@@ -48,9 +48,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::VoxelPhysicsManager
   simScale: 10
-  interactiveObjects:
-  - {fileID: 0}
-  - {fileID: 0}
+  interactiveObjects: []
   localRobots: []
 --- !u!1 &6010759565098889348
 GameObject:
