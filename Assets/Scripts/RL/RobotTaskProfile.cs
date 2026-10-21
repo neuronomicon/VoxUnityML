@@ -62,7 +62,9 @@ public abstract class RobotTaskProfile : ScriptableObject
     public virtual void OnEpisodeBegin(VoxelRobotAgent agent, RobotTaskState state)
     {
         //Debug.Log($"[{agent.name}] Episode Begin!");
+    #if !UNITY_SERVER
         Debug.Log($"[VoxRobot_{agent.robotIdx:00}] Episode Begin!");
+    #endif
                 
         VoxelRobotAgent.CPP_Reset_Voxel_Unity(agent.robotIdx);
     }
