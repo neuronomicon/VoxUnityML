@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using Unity.MLAgents;                  // ← 추가 (Academy.Instance.StatsRecorder)
 using Unity.MLAgents.Sensors;
 using Unity.MLAgents.Actuators; 
 
@@ -19,11 +20,12 @@ public class TargetTrackingState : RobotTaskState
     [ReadOnly] public Vector3 lastCheckedPos = Vector3.zero;
     [ReadOnly] public int freezeCount = 0;
     
-    // 0.5초 동안 4단계 궤적을 저장할 내부 버퍼 (4단계 x 296개 값)[cite: 1, 3]
-    //public float[,] observationBuffer = new float[4, 296];
 
-    // [수정] 크기를 고정하지 않고 선언만 해둠
-    //public float[,] observationBuffer;
+    // 2026-10-22
+    // ───── 에피소드 결과 기록용 ─────
+    [ReadOnly] public int   lastResult   = -1;    // -1 미결(=타임아웃), 1 성공, 0 실패
+    [ReadOnly] public int   lastFailCode = 0;     // 1 공회전, 2 추락, 3 뒤집힘
+    [ReadOnly] public float lastDistance = -1f;   // 종료 시점 타깃까지 거리
 }
 
 
@@ -66,6 +68,12 @@ public class TargetTrackingProfile : RobotTaskProfile
 
         var tState = state as TargetTrackingState;
 
+
+        // 2026-10-22 직전 에피소드가 어느 분기도 타지 않고 끝났다면 = MaxStep 타임아웃
+        if (agent.CompletedEpisodes > 0 && tState.lastResult == -1)
+            RecordEpisodeStats(agent, tState);         // ← 추가
+
+
         /*// 에이전트가 계산해둔 버퍼 크기를 가져와서 4개(Phase)의 슬롯을 동적 생성
         if (tState.observationBuffer == null || tState.observationBuffer.GetLength(1) != agent.StateBufferSize)
         {
@@ -77,6 +85,9 @@ public class TargetTrackingProfile : RobotTaskProfile
             Debug.LogError($"[{agent.name}] targetTransform 이 비어 있습니다! " +
                            $"거리 보상과 도달 판정이 전혀 동작하지 않고 생존 페널티만 쌓입니다. " +
                            $"Agent 의 Runtime State > Target Object 슬롯을 확인하세요.");
+        #if UNITY_SERVER
+            Application.Quit(1);          // 헤드리스에서는 즉시 중단
+        #endif
         }
 
         // 목표물(Target)을 로봇 근처 일정 범위 내 랜덤 재배치[cite: 1, 3]
@@ -87,6 +98,8 @@ public class TargetTrackingProfile : RobotTaskProfile
             tState.targetTransform.localPosition = new Vector3(randomDir.x * randomDist - 0.25f, 0.5f, randomDir.y * randomDist - 0.25f);
         }
 
+
+    /*  // 2026-10-22 수정
         Vector3 robotCoM = agent.GetRobotCenterOfMass(body.expectedVoxelCount);
         
         if (tState.targetTransform != null)
@@ -101,7 +114,16 @@ public class TargetTrackingProfile : RobotTaskProfile
 
         tState.freezeCount = 0;
         tState.lastCheckedPos = robotCoM;
-        //tState.currentVoxelUpVector = Vector3.up;
+    */
+
+        // C++ 리셋은 지연 실행된다 — CPP_Reset_Voxel_Unity() 는 플래그만 세우고 리턴하고,
+        // 실제 g_sim->Zero() 는 다음 사이클에 워커 스레드에서 일어난다.
+        // 따라서 이 시점의 CoM 은 직전 에피소드의 마지막 자세이며 기준값으로 쓸 수 없다.
+        // 거리 기준은 리셋이 끝난 뒤 첫 OnActionReceived 에서 잡는다.
+        tState.previousDistance = -1f;                    // 센티넬: 아직 기준 없음
+        tState.lastCheckedPos   = Vector3.positiveInfinity;
+        tState.freezeCount      = 0;
+        
     }
 
     public override void OnIntermediatePhase(VoxelRobotAgent agent, RobotTaskState state, int phaseIndex, int cycleCount)
@@ -155,47 +177,96 @@ public class TargetTrackingProfile : RobotTaskProfile
         Vector3 currentCoM = agent.GetRobotCenterOfMass(body.expectedVoxelCount);
         bool isDone = false; 
 
+        
+        bool isFirstStep = (tState.previousDistance < 0f);   // ← 추가
+        float currentDistance = -1f; 
+
+
         // [1. 공회전 체크] 로봇이 움직이지 않고 굳었을 때 마이너스 보상[cite: 1, 3]
-        if (Vector3.Distance(currentCoM, tState.lastCheckedPos) < 0.00001f) {
+        //if (Vector3.Distance(currentCoM, tState.lastCheckedPos) < 0.00001f) {
+        if (!isFirstStep && Vector3.Distance(currentCoM, tState.lastCheckedPos) < 0.00001f) 
+        {
             tState.freezeCount++;
-            if (tState.freezeCount > freezeStepLimit) {
+            
+            if (tState.freezeCount > freezeStepLimit) 
+            {
                 Debug.LogError($"[{agent.name}] Robot freeze not moving! Will reset.");
                 agent.AddReward(failPenalty); 
+
+                tState.lastResult   = 0;        // ← 추가
+                tState.lastFailCode = 1;        // ← 추가
+
                 isDone = true;
             }
-        } else { 
+        } 
+        else
+        { 
             tState.freezeCount = 0; 
         }
+
         tState.lastCheckedPos = currentCoM; 
 
         // [2. 타겟 체크] 타겟 도달 시 플러스 보상[cite: 1, 3]
-        if (!isDone && tState.targetTransform != null) {
+        if (!isDone && tState.targetTransform != null) 
+        {
             Vector3 targetLocalPos = agent.PhysicsInfo.transform.InverseTransformPoint(tState.targetTransform.position);
             
             //float currentDistance = Vector3.Distance(currentCoM, targetLocalPos);
             Vector3 delta = targetLocalPos - currentCoM;
-            float currentDistance = new Vector2(delta.x, delta.z).magnitude;   // ← XZ 로 통일
-            
+            currentDistance = new Vector2(delta.x, delta.z).magnitude;   // ← XZ 로 통일
+
+        /*  // 2026-10-22
             float rewardDelta = tState.previousDistance - currentDistance;
             agent.AddReward(rewardDelta * distanceRewardMultiplier);
             tState.previousDistance = currentDistance;
+        */
 
-            if (currentDistance < targetReachThreshold) {
+            if (isFirstStep)
+            {
+                // 리셋이 끝난 진짜 위치에서 기준만 잡는다. 이 스텝의 거리 보상은 0.
+                tState.previousDistance = currentDistance;
+            }
+            else
+            {
+                float rewardDelta = tState.previousDistance - currentDistance;
+                agent.AddReward(rewardDelta * distanceRewardMultiplier);
+                tState.previousDistance = currentDistance;
+            }
+
+
+
+            if (currentDistance < targetReachThreshold) 
+            {
+            #if !UNITY_SERVER
                 Debug.Log($"[{agent.name}] Target reached!");
+            #endif
+
                 agent.AddReward(successReward);
+
+                tState.lastResult = 1;        // ← 추가
+
                 isDone = true;
             }
+
         }
+
 
         // [3. 추락 및 뒤집힘 체크][cite: 1, 3] c++ 단위로 -0.2 
         if (!isDone && (currentCoM.y < -0.2f || Vector3.Dot(agent.LastUpVector, Vector3.up) < 0f)) {
             agent.AddReward(failPenalty);
+
+            tState.lastResult   = 0;                                 // ← 추가
+            tState.lastFailCode = (currentCoM.y < -0.2f) ? 2 : 3;     // ← 추가
+
             isDone = true;
         }
 
         // [4. 에피소드 종료 처리 및 생존 페널티][cite: 1, 3]
         if (isDone) 
         {
+            tState.lastDistance = currentDistance;     // ← 추가
+            RecordEpisodeStats(agent, tState);         // ← 추가
+
             agent.EndEpisode(); 
         }
         else
@@ -207,6 +278,27 @@ public class TargetTrackingProfile : RobotTaskProfile
             else                   agent.AddReward(-0.001f);
         }
     }
+
+
+    private void RecordEpisodeStats(VoxelRobotAgent agent, TargetTrackingState tState)
+    {
+        var rec = Academy.Instance.StatsRecorder;
+        bool success = (tState.lastResult == 1);
+
+        rec.Add("Task/Success",      success ? 1.0f : 0.0f);
+        rec.Add("Task/Fail_Freeze",  tState.lastFailCode == 1  ? 1.0f : 0.0f);
+        rec.Add("Task/Fail_Fall",    tState.lastFailCode == 2  ? 1.0f : 0.0f);
+        rec.Add("Task/Fail_Flip",    tState.lastFailCode == 3  ? 1.0f : 0.0f);
+        rec.Add("Task/Fail_Timeout", tState.lastResult   == -1 ? 1.0f : 0.0f);
+
+        if (tState.lastDistance >= 0f) rec.Add("Task/FinalDistance",  tState.lastDistance);
+        if (success)                   rec.Add("Task/StepsToTarget",  agent.StepCount);
+
+        tState.lastResult   = -1;
+        tState.lastFailCode = 0;
+        tState.lastDistance = -1f;
+    }
+
 
     public override void Heuristic(VoxelRobotAgent agent, in ActionBuffers actionsOut, RobotTaskState state)
     {

@@ -15,8 +15,8 @@ MonoBehaviour:
   body: {fileID: 11400000, guid: 9684e7a48172aad4495b95dfb6a3a25f, type: 2}
   behaviorName: VoxBot516
   maxStep: 400
-  minSpawnDist: 3.2
-  maxSpawnDist: 4.2
+  minSpawnDist: 2.5
+  maxSpawnDist: 3.5
   successReward: 5
   failPenalty: -1
   distanceRewardMultiplier: 20
