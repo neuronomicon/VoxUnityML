@@ -687,8 +687,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::VoxelEngineCore
   is_ml_agent: 1
+  allowArenaCountOverride: 0
   dllFolderPath: C:/Z_SHIM/PROG_MAJOR/PROJECT/NeuronomicoN_VS2022/ProjectDLL
-  activeDllName: NeuronomicoN_DLL_x64_Release
+  activeDllName: NeuronomicoN_DLL_x64_ReleaseCL
   num_robots: 1
   voxelParseKind: 0
   maxNumOscillators: 2

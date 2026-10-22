@@ -163,6 +163,31 @@ public class VoxelPhysicsInfo : MonoBehaviour
 
 
 
+    // 🌟 2026-10-22 추가
+    // 시뮬레이션 좌표(sim) → 유니티 월드 좌표 배율.
+    // 이전에는 VoxelGraphicRenderer.Start() 에서 설정했으나,
+    // 그 함수는 UNITY_SERVER / graphicsDeviceType==Null 에서 조기 return 하므로
+    // 헤드리스 빌드에서 스케일이 1로 남아 TargetTrackingProfile 의 거리 계산이
+    // 10배 어긋나는 문제가 있었다. 렌더링과 무관한 좌표계 설정이므로 여기로 옮긴다.
+    private void Awake()
+    {
+        float scale = 10f;   // 루트를 못 찾았을 때의 보수적 기본값
+
+        var arena = GetComponentInParent<VoxelPhysicsManager>();   // ← 실제 클래스명으로 교체
+        if (arena != null)
+        {
+            scale = arena.simScale;
+        }
+        else
+        {
+            Debug.LogWarning($"[VoxelPhysicsInfo] robot {robotIndex}: " +
+                             $"부모에서 simScale 보유 컴포넌트를 찾지 못해 기본값 {scale} 사용.");
+        }
+
+        transform.localScale = Vector3.one * scale;
+    }
+
+
     private void Update()
     {
         // 🌟 파이썬과 통신 중(훈련 모드)이 아닐 때(= Inference 모드일 때)만 모니터링 실행

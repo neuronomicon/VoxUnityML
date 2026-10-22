@@ -94,7 +94,7 @@ public class VoxelGraphicRenderer : MonoBehaviour
             new VertexAttributeDescriptor(VertexAttribute.TexCoord2, VertexAttributeFormat.SInt32,  1)  
         };
 
-        transform.localScale = new Vector3(10f, 10f, 10f);
+        //transform.localScale = new Vector3(10f, 10f, 10f);
         Bounds hugeBounds = new Bounds(Vector3.zero, new Vector3(1000f, 1000f, 1000f));
 
 
