@@ -8,7 +8,7 @@ EditorBuildSettings:
   - enabled: 0
     path: Assets/Scenes/MultiArenaScene04.unity
     guid: 99c9720ab356a0642a771bea13969a05
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/SingleArenaScene.unity
     guid: fa9d9d15040c4bd489d2093365c5592d
   - enabled: 0
@@ -27,8 +27,11 @@ EditorBuildSettings:
     path: Assets/Scenes/Vox516_Multi_Arena_04_20Hz.unity
     guid: 47c7ad4c0617bdd45aac8106109c8fb5
   - enabled: 0
-    path: Assets/Scenes_Test/Test_Vox516_Single_Arena.unity
+    path: Assets/Scenes_Test/Test_Vox516_Arena_128.unity
     guid: f7a641929bca2494ab916e67c1671ad4
+  - enabled: 1
+    path: Assets/Scenes_Test/Test_Vox33_Arena_128.unity
+    guid: 31d219890e1d96246a24e3ef4db466ff
   m_configObjects:
     com.unity.dt.app-ui: {fileID: 11400000, guid: 1b1c20d82303e4b5781c3ef50ac1449f, type: 2}
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}

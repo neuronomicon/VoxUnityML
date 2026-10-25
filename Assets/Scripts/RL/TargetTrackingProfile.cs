@@ -23,7 +23,7 @@ public class TargetTrackingState : RobotTaskState
 
     // 2026-10-22
     // ───── 에피소드 결과 기록용 ─────
-    [ReadOnly] public int   lastResult   = -1;    // -1 미결(=타임아웃), 1 성공, 0 실패
+    [ReadOnly] public int   lastResult   = -2;    // ← -1 이 아니라 -2 (기록 완료 표시) // -1 미결(=타임아웃), 1 성공, 0 실패
     [ReadOnly] public int   lastFailCode = 0;     // 1 공회전, 2 추락, 3 뒤집힘
     [ReadOnly] public float lastDistance = -1f;   // 종료 시점 타깃까지 거리
 }
@@ -41,8 +41,8 @@ public class TargetTrackingProfile : RobotTaskProfile
 
     public float successReward = 5.0f; 
     public float failPenalty = -1.0f; 
-    public float distanceRewardMultiplier = 2.0f; 
-    public float targetReachThreshold = 0.2f; 
+    public float distanceRewardMultiplier = 20.0f; 
+    public float targetReachThreshold = 0.07f; 
 
     
     /*
@@ -73,6 +73,8 @@ public class TargetTrackingProfile : RobotTaskProfile
         if (agent.CompletedEpisodes > 0 && tState.lastResult == -1)
             RecordEpisodeStats(agent, tState);         // ← 추가
 
+        tState.lastResult = -1;        // ← 새 에피소드 시작: 미결 상태로
+
 
         /*// 에이전트가 계산해둔 버퍼 크기를 가져와서 4개(Phase)의 슬롯을 동적 생성
         if (tState.observationBuffer == null || tState.observationBuffer.GetLength(1) != agent.StateBufferSize)
@@ -89,6 +91,26 @@ public class TargetTrackingProfile : RobotTaskProfile
             Application.Quit(1);          // 헤드리스에서는 즉시 중단
         #endif
         }
+
+
+        // 2026-10-24 스케일 검증
+        // VoxelPhysicsInfo.Awake() 가 transform.localScale 을 simScale(10) 로 설정한다.
+        // 이게 적용되지 않으면 InverseTransformPoint 가 10 으로 나누지 않아
+        // targetLocalPos 는 유니티 미터, currentCoM 은 sim 단위가 되어 거리가 10배 어긋난다.
+        // (보상이 이론 상한의 5배로 뜨고, 도달 임계값이 10배 엄격해진다.)
+        if (agent.CompletedEpisodes == 0)
+        {
+            float sc = agent.PhysicsInfo.transform.lossyScale.x;
+            if (Mathf.Abs(sc - 10f) > 0.01f)
+            {
+                Debug.LogError($"[{agent.name}] simScale 미적용! lossyScale={sc} (기대값 10) " +
+                    $"— 거리 계산이 10배 어긋나므로 학습 결과를 신뢰할 수 없습니다.");
+            #if UNITY_SERVER
+                Application.Quit(1);
+            #endif
+            }
+        }
+
 
         // 목표물(Target)을 로봇 근처 일정 범위 내 랜덤 재배치[cite: 1, 3]
         if (tState.targetTransform != null)
@@ -215,6 +237,8 @@ public class TargetTrackingProfile : RobotTaskProfile
             Vector3 delta = targetLocalPos - currentCoM;
             currentDistance = new Vector2(delta.x, delta.z).magnitude;   // ← XZ 로 통일
 
+            tState.lastDistance = currentDistance;    // ★ 추가: 매 스텝 갱신
+
         /*  // 2026-10-22
             float rewardDelta = tState.previousDistance - currentDistance;
             agent.AddReward(rewardDelta * distanceRewardMultiplier);
@@ -264,7 +288,7 @@ public class TargetTrackingProfile : RobotTaskProfile
         // [4. 에피소드 종료 처리 및 생존 페널티][cite: 1, 3]
         if (isDone) 
         {
-            tState.lastDistance = currentDistance;     // ← 추가
+            //tState.lastDistance = currentDistance;     // ← 추가
             RecordEpisodeStats(agent, tState);         // ← 추가
 
             agent.EndEpisode(); 
@@ -294,7 +318,7 @@ public class TargetTrackingProfile : RobotTaskProfile
         if (tState.lastDistance >= 0f) rec.Add("Task/FinalDistance",  tState.lastDistance);
         if (success)                   rec.Add("Task/StepsToTarget",  agent.StepCount);
 
-        tState.lastResult   = -1;
+        tState.lastResult   = -2;
         tState.lastFailCode = 0;
         tState.lastDistance = -1f;
     }
