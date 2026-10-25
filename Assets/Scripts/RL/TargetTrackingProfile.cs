@@ -345,7 +345,12 @@ public class TargetTrackingProfile : RobotTaskProfile
     #endif
 
         // 근육마다 위상을 어긋나게 -> 진행파가 생겨 실제로 이동/회전함
-        float t = Time.time;
+        //float t = Time.time;
+
+        // 벽시계가 아니라 시뮬레이션 시간으로 위상을 구동한다.
+        // 구성마다 결정 주기가 달라져도 보행 주파수(와 작업량)가 동일하게 유지된다.
+        float t = (agent.PhysicsInfo != null) ? (float)agent.PhysicsInfo.currentRobotStep : Time.time;
+
         for (int i = 0; i < ca.Length; i++)
             ca[i] = amp * Mathf.Sin(2f * Mathf.PI * 2f * t + i * 0.5f);
 

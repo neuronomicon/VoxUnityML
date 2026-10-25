@@ -166,6 +166,9 @@ public class VoxelEngineCore : MonoBehaviour
         // ===== [MEASURE 2026-10] 확장성 스윕: 활성 훈련장 수 제한 =====
         ApplyRobotCountOverride();
 
+        // ===== [MEASURE 2026-10c] 로봇당 내부 스레드 수 덮어쓰기 =====
+        ApplyThreadCountOverride();
+
 
         // ==========================================================
         // 2. 씬 내의 훈련장(총괄: VoxelPhysicsManager)들을 찾아서 인덱스 체계적 발급
@@ -324,6 +327,49 @@ public class VoxelEngineCore : MonoBehaviour
 
         if (on < want)
             Debug.LogWarning($"[MEASURE] Scene has only {all.Length} areas, requested {want}.");
+    }
+
+
+        // ===========================================================================
+    // [MEASURE 2026-10c] 로봇당 내부 스레드 수(중첩 OpenMP 미시 병렬) 덮어쓰기
+    //   실행:  VoxelSim_Server.exe -robots 21 -threads 3
+    //   또는:  set VOX_THREADS=3
+    //
+    //   GatherRobotsAndSendToCpp() 가 threadCount 를 읽어 finalThreadArray 를
+    //   만들고, 그 배열이 그대로 C++ 의 num_thr_per_robot 으로 전달된다.
+    //   따라서 이 함수는 반드시 그 호출보다 먼저 실행되어야 한다.
+    // ===========================================================================
+    private void ApplyThreadCountOverride()
+    {
+        int thr = -1;
+
+        string[] args = System.Environment.GetCommandLineArgs();
+        for (int i = 0; i < args.Length - 1; i++)
+        {
+            if (args[i] == "-threads" && int.TryParse(args[i + 1], out int v)) { thr = v; break; }
+        }
+        if (thr <= 0)
+        {
+            string env = System.Environment.GetEnvironmentVariable("VOX_THREADS");
+            if (!string.IsNullOrEmpty(env) && int.TryParse(env, out int v2)) thr = v2;
+        }
+
+        if (!allowArenaCountOverride)
+        {
+            if (thr > 0)
+                Debug.LogWarning($"[MEASURE] threads={thr} requested, but 'allowArenaCountOverride' is OFF. Ignored.");
+            return;
+        }
+
+        if (thr <= 0) return;   // 지정 없으면 씬 설정 그대로
+
+        // 비활성 로봇까지 전부 덮어쓴다 (나중에 활성화되어도 일관되게)
+        VoxelRobotInstance[] all = FindObjectsByType<VoxelRobotInstance>(
+                                       FindObjectsInactive.Include, FindObjectsSortMode.None);
+
+        foreach (var inst in all) inst.threadCount = thr;
+
+        Debug.Log($"[MEASURE] threadCount override -> {thr} on {all.Length} robot instances.");
     }
 
 
